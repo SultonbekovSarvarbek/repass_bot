@@ -1,0 +1,1290 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="format-detection" content="telephone=no">
+<meta name="robots" content="noindex">
+<title>Repass</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+// Pick light or dark before the first paint, from the user's Telegram theme.
+function scheme() {
+  var w = window.Telegram && window.Telegram.WebApp;
+  return (w && w.initData && w.colorScheme) || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+}
+document.documentElement.dataset.theme = scheme();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@700&display=swap" rel="stylesheet">
+<style>
+/* Brand: ink + green + paper, same as repass.uz. Light or dark follows the user's Telegram theme. */
+:root {
+  --ink: #000D1F; --green: #4EE40C; --paper: #F2EEE3;
+  --page: var(--paper);
+  --card: #FCFAF4;
+  --text: var(--ink);
+  --hint: #5B6472;
+  --accent: var(--ink);       /* filled controls: buttons, active chips */
+  --on-accent: var(--green);
+  --mark: var(--ink);         /* accent as a text / icon colour */
+  --danger: #C2362B;
+  --line: rgba(0, 13, 31, 0.14);
+  --tint: #CDF5B8;
+  --bad-tint: #F6DCD3;
+  --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234EE40C' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  --logo: url("data:image/png;base64,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");
+  --display: "Unbounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --body: "Onest", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --safe-b: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
+  --tabbar: 62px;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --page: var(--ink);
+  --card: #0B1B33;
+  --text: var(--paper);
+  --hint: #93A0B4;
+  --accent: var(--green);
+  --on-accent: var(--ink);
+  --mark: var(--green);
+  --danger: #FF7466;
+  --line: rgba(242, 238, 227, 0.14);
+  --tint: rgba(78, 228, 12, 0.14);
+  --bad-tint: rgba(255, 116, 102, 0.15);
+  --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000D1F' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; }
+body {
+  background: var(--page); color: var(--text);
+  font: 16px/1.4 var(--body);
+  -webkit-font-smoothing: antialiased; overscroll-behavior-y: none;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; padding: 0; text-align: inherit; }
+
+#view { max-width: 560px; margin: 0 auto; padding: 16px 16px calc(var(--tabbar) + var(--safe-b) + 24px); }
+body.pushed #view, body.typing #view { padding-bottom: calc(var(--safe-b) + 28px); }
+
+h1 { font: 700 22px/1.2 var(--display); letter-spacing: -0.02em; margin: 6px 0 16px; text-wrap: balance; overflow-wrap: anywhere; }
+h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--hint); margin: 26px 4px 8px; }
+p { margin: 0; }
+.muted { color: var(--hint); }
+.small { font-size: 13.5px; line-height: 1.35; }
+.note { color: var(--hint); font-size: 13.5px; line-height: 1.4; margin: 8px 4px 0; }
+.num { font-variant-numeric: tabular-nums; }
+
+.card { background: var(--card); border-radius: 18px; }
+.stack > * + * { margin-top: 10px; }
+.stack > h2 { margin-top: 24px; }
+
+/* logo + brand bar */
+.logo { display: block; flex: none; width: 40px; height: 40px; border-radius: 23%; background: #fff var(--logo) center/cover no-repeat; }
+:root[data-theme="dark"] .logo { box-shadow: 0 0 0 1px var(--line); }
+.logo.big { width: 88px; height: 88px; }
+.brand { display: flex; align-items: center; gap: 11px; margin: 0 0 20px; }
+.brand .wordmark { font: 700 17px/1 var(--display); letter-spacing: -0.02em; }
+.brand .tag { margin-left: auto; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px; background: var(--green); color: var(--ink); }
+.splash { display: flex; flex-direction: column; align-items: center; padding-top: 22vh; }
+.splash .spinner { margin-top: 36px; }
+
+/* city filter */
+.chips { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px 14px; padding: 2px 16px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; padding: 8px 14px; border-radius: 999px; background: var(--card); font-size: 14.5px; font-weight: 500; white-space: nowrap;
+}
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.chip .n { opacity: 0.6; margin-left: 5px; }
+.chip .clogo { width: 18px; height: 18px; margin: -3px 6px -3px -6px; vertical-align: middle; }
+/* club logos: the clubs' own pictures, 1Fit as a word mark */
+.clogo { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 50%; overflow: hidden;
+  width: 22px; height: 22px; background: #111; color: #fff; font-size: 9px; font-weight: 700; letter-spacing: -0.02em; }
+.clogo img { width: 100%; height: 100%; object-fit: cover; }
+.clogo.fit { background: #3447F6; }
+.clogo.fit img { object-fit: contain; padding: 0 1px; }  /* 1Fit's mark is a wide pill: fit it whole into the circle */
+.club-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.club-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.club-grid button { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; text-align: left;
+  background: var(--bg); border: 1.5px solid transparent; font-weight: 600; font-size: 14px; min-width: 0; }
+.club-grid button .clogo { width: 36px; height: 36px; font-size: 12px; }
+.club-grid button span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.club-grid button[aria-pressed="true"] { border-color: var(--accent); }
+.legal { font-size: 13px; text-align: center; margin: 0 8px; }
+.legal a { color: inherit; text-decoration: underline; }
+
+/* listing rows — a ticket: details on the left, price on the tear-off stub */
+.item { position: relative; overflow: hidden; display: flex; align-items: stretch; gap: 14px; width: 100%; padding: 15px 16px; }
+.item:active { opacity: 0.6; }
+.item .main { flex: 1; min-width: 0; align-self: center; }
+.item .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .sub { color: var(--hint); font-size: 13.5px; margin-top: 2px; }
+.item .price {
+  position: relative; flex: none; display: flex; flex-direction: column; justify-content: center;
+  padding-left: 14px; border-left: 1.5px dashed var(--line);
+  text-align: right; font: 700 14px/1.25 var(--display); letter-spacing: -0.01em; white-space: nowrap;
+}
+.item .price::before, .item .price::after {
+  content: ""; position: absolute; left: -8px; width: 14px; height: 14px; border-radius: 50%; background: var(--page);
+}
+.item .price::before { top: -22px; }
+.item .price::after { bottom: -22px; }
+.item .price small { display: block; font: 400 12px/1.3 var(--body); letter-spacing: 0; color: var(--hint); margin-top: 2px; }
+.badge { display: inline-block; font-size: 12.5px; padding: 3px 9px; border-radius: 999px; background: var(--page); margin-top: 6px; }
+/* «cheapest» flag sitting on the top-right edge of the first catalog card */
+.best { position: relative; }
+.stack > .best { margin-top: 20px; }
+/* Corner flags on a catalog card: «🔥 Выгода 26%» and «Самый дешёвый», side by side in the top right corner. */
+.flags { position: absolute; top: -11px; right: 14px; z-index: 1; display: flex; gap: 6px; }
+.flag {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 11px 4px 9px; border-radius: 999px; background: var(--green); color: var(--ink);
+  font: 700 12px/1.2 var(--body); letter-spacing: 0.01em; white-space: nowrap;
+  box-shadow: 0 0 0 3px var(--page), 0 4px 12px rgba(0, 13, 31, 0.18);
+}
+.flag svg { width: 13px; height: 13px; fill: currentColor; }
+.hero { position: relative; }
+.hero /* price type: negotiable stands out in lime, fixed stays quiet */
+.badge.ptype { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; letter-spacing: 0.01em; padding: 4px 10px 4px 8px; }
+.badge.ptype::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.badge.deal { background: var(--green); color: var(--ink); }
+.badge.fixed { background: var(--page); color: var(--hint); }
+.hero .badge.ptype { margin-top: 10px; }
+.hero .badge.deal { background: var(--ink); color: var(--green); }
+.hero .badge.fixed { background: rgba(0, 13, 31, 0.1); color: var(--ink); }
+/* installment: the buyer keeps paying every month, so it must not look like the whole price */
+.badge.inst { background: var(--tint); color: var(--text); }
+/* sold lately: still in the list for a few days, dimmed, with a dark «Sold» badge and no contacts */
+.item.sold { opacity: 0.6; }
+.badge.sold { background: var(--ink); color: var(--green); font-weight: 700; }
+/* «✓ Проверено»: the placement is paid */
+.vbadge { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; padding: 2px 8px 2px 6px; border-radius: 999px;
+  background: var(--green); color: var(--ink); font-size: 11.5px; font-weight: 700; letter-spacing: 0.01em; }
+.vbadge svg { width: 12px; height: 12px; }
+.hero .inst-note { margin-top: 10px; font-size: 14px; font-weight: 500; }
+.field .seg { margin-top: 8px; background: var(--page); }
+.field[hidden], .card[hidden] { display: none; }
+
+/* detail */
+.hero { padding: 18px 18px 20px; background: var(--green); color: var(--ink); }
+.hero .label { font-size: 13.5px; font-weight: 500; opacity: 0.66; }
+.hero .value { font: 700 28px/1.15 var(--display); letter-spacing: -0.03em; margin-top: 4px; }
+.hero .value small { font: 500 15px var(--body); letter-spacing: 0; opacity: 0.66; }
+/* used share of the membership: «Использовано 8 из 12 мес.» + a bar */
+.rows > div { display: flex; justify-content: space-between; gap: 16px; padding: 13px 16px; }
+.rows > div + div { border-top: 1px solid var(--line); }
+.rows .k { color: var(--hint); flex: none; }
+.rows .v { text-align: right; overflow-wrap: anywhere; }
+.rows .strong .v { font-weight: 700; }
+.text { padding: 14px 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.callout { padding: 13px 16px; border-radius: 16px; background: var(--tint); font-size: 14.5px; line-height: 1.4; }
+.callout.bad { background: var(--bad-tint); }
+.card > .callout { margin: 0 12px 4px; }  /* a warning inside a card keeps the card's edges */
+/* price advice in the sell form and the per-month cost a buyer compares with 1Fit */
+.advice { display: grid; gap: 8px; padding: 14px 16px 16px; }
+.advice .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 2px 0 4px; padding: 0; }
+.advice .label { font-size: 13px; color: var(--hint); }
+.advice .value { font-size: 20px; font-weight: 700; }
+/* «📦 Вы отдаёте покупателю 53 дн. — до 13 января 2027»: what the price is for — the seller must notice it */
+.advice p.giving { opacity: 1; margin: 2px 0; padding: 11px 13px; border-radius: 13px; background: var(--green);
+  color: var(--ink); font-size: 15px; font-weight: 700; line-height: 1.35; }
+.advice p { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--text); opacity: 0.78; }
+
+/* buttons */
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 52px;
+  padding: 12px 20px; border-radius: 999px; font-weight: 600; text-align: center;
+  background: var(--accent); color: var(--on-accent);
+}
+a.btn { text-decoration: none; }
+.btn:active { opacity: 0.75; }
+.btn[disabled] { opacity: 0.5; pointer-events: none; }
+.btn.ghost { background: none; color: var(--text); box-shadow: inset 0 0 0 1.5px var(--line); }
+.btn.danger { background: none; color: var(--danger); box-shadow: inset 0 0 0 1.5px var(--line); }
+.btn.small { min-height: 36px; width: auto; padding: 6px 14px; font-size: 14.5px; background: var(--tint); color: var(--mark); box-shadow: none; }
+.btn.small.danger { background: none; color: var(--danger); }
+
+/* forms */
+.field { display: block; padding: 11px 16px 12px; position: relative; }
+.field + .field, .field + .check, .check + .field { border-top: 1px solid var(--line); }
+.field > span { display: block; font-size: 12.5px; color: var(--hint); margin-bottom: 2px; }
+.field input, .field select, .field textarea {
+  display: block; width: 100%; border: 0; outline: 0; background: transparent; padding: 2px 0; margin: 0;
+  appearance: none; -webkit-appearance: none; border-radius: 0; min-height: 26px; caret-color: var(--mark);
+}
+.field textarea { resize: none; min-height: 84px; }
+.field ::placeholder { color: var(--hint); opacity: 0.65; }
+.field select:invalid { color: var(--hint); }
+.field .hint { font-size: 12.5px; color: var(--hint); margin-top: 4px; }
+.field .err { font-size: 13px; color: var(--danger); margin-top: 4px; }
+.field.invalid > span { color: var(--danger); }
+.field .counter { position: absolute; right: 16px; top: 11px; font-size: 12.5px; color: var(--hint); }
+.row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; }
+.row .grow { flex: 1; min-width: 0; }
+.shot-btns { display: flex; gap: 6px; flex: none; }
+.row.invalid { box-shadow: inset 0 0 0 2px var(--danger); border-radius: 18px; }
+.check { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
+.check input { appearance: none; -webkit-appearance: none; flex: none; width: 24px; height: 24px; margin: 0; border-radius: 8px; border: 2px solid var(--hint); }
+.check input:checked { border-color: var(--accent); background: var(--accent) var(--check) center/16px no-repeat; }
+.check.invalid input { border-color: var(--danger); }
+
+/* misc */
+.steps { margin: 0; padding: 6px 16px 6px 42px; }
+.steps li { padding: 9px 0; }
+.steps li + li { border-top: 1px solid var(--line); }
+.steps li::marker { color: var(--mark); font-weight: 700; font-variant-numeric: tabular-nums; }
+.seg { display: flex; padding: 4px; gap: 4px; border-radius: 999px; }
+.seg button { flex: 1; text-align: center; padding: 10px; border-radius: 999px; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.titlebar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 6px 0 16px; }
+.titlebar h1 { margin: 0; min-width: 0; }
+.seg.mini { flex: none; padding: 3px; gap: 2px; }
+.seg.mini button { flex: none; padding: 6px 12px; font-size: 13px; }
+.empty { text-align: center; color: var(--hint); padding: 56px 24px 24px; }
+.empty .logo { margin: 0 auto 22px; }
+.empty .btn { margin-top: 18px; }
+.done { text-align: center; padding: 40px 8px 8px; }
+.done .mark { width: 68px; height: 68px; margin: 0 auto 18px; border-radius: 50%; background: var(--green); color: var(--ink); display: grid; place-items: center; }
+.done .mark svg { width: 32px; height: 32px; stroke-width: 2.6; }
+.done h1 { margin-bottom: 8px; }
+.spinner { width: 26px; height: 26px; margin: 64px auto; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--mark); animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+/* Full-screen «uploading the screenshot…»: the page waits, nothing can be tapped meanwhile */
+.overlay { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 6px; padding: 24px; text-align: center; background: rgba(0, 13, 31, 0.72);
+  color: #F2EEE3; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+.overlay .spinner { margin: 0 auto 14px; width: 40px; height: 40px; border-color: rgba(242, 238, 227, 0.25);
+  border-top-color: var(--green); }
+.overlay .title { font-size: 17px; font-weight: 700; }
+.overlay .sub { font-size: 14px; opacity: 0.8; max-width: 280px; }
+.overlay.sheet { justify-content: flex-end; padding: 0; }
+.sheet-card { width: 100%; max-width: 560px; max-height: 92vh; overflow: auto; text-align: left; padding: 20px 16px calc(16px + var(--safe-b));
+  border-radius: 22px 22px 0 0; background: var(--card); color: var(--text); display: grid; gap: 10px; }
+.sheet-card .title { font: 700 19px/1.25 var(--display); margin: 2px 4px 4px; }
+.sheet-card .rows { background: var(--page); border-radius: 16px; }
+/* skeleton placeholders while data loads */
+.sk {
+  --sk-base: var(--line); --sk-glow: color-mix(in srgb, var(--card) 70%, transparent);
+  position: relative; overflow: hidden; display: block; height: 12px; border-radius: 6px; background: var(--sk-base);
+}
+.sk::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--sk-glow), transparent);
+  animation: sk 1.4s ease-in-out infinite;
+}
+.sk + .sk { margin-top: 8px; }
+.hero .sk { --sk-base: rgba(0, 13, 31, 0.14); --sk-glow: rgba(255, 255, 255, 0.45); }
+.item.ghost { pointer-events: none; }
+.item.ghost .price { justify-content: center; align-items: flex-end; }
+@keyframes sk { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .sk::after { animation: none; } }
+
+#tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; justify-content: center;
+  background: var(--card); border-top: 1px solid var(--line); padding-bottom: var(--safe-b);
+}
+#tabs button { flex: 1; max-width: 140px; height: var(--tabbar); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 11px; font-weight: 500; color: var(--hint); }
+#tabs span { max-width: 100%; padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tabs svg { width: 54px; height: 28px; padding: 3px 16px; border-radius: 999px; }
+#tabs button[aria-current="page"] { color: var(--text); }
+#tabs button[aria-current="page"] svg { background: var(--green); color: var(--ink); }
+body.pushed #tabs, body.typing #tabs, body.gate #tabs { display: none; }
+
+#toast {
+  position: fixed; left: 50%; bottom: calc(var(--tabbar) + var(--safe-b) + 16px); transform: translate(-50%, 12px);
+  max-width: calc(100% - 32px); padding: 11px 18px; border-radius: 999px; z-index: 10; font-size: 14.5px; text-align: center;
+  background: var(--text); color: var(--page);
+  opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
+}
+#toast.on { opacity: 1; transform: translate(-50%, 0); }
+body.pushed #toast, body.typing #toast { bottom: calc(var(--safe-b) + 16px); }
+</style>
+</head>
+<body class="gate">
+<main id="view"><div class="splash"><span class="logo big"></span><div class="spinner"></div></div></main>
+<nav id="tabs"></nav>
+<div id="toast" role="status"></div>
+
+<script>
+"use strict";
+const tg = window.Telegram && window.Telegram.WebApp;
+const $view = document.getElementById("view");
+const $tabs = document.getElementById("tabs");
+const $toast = document.getElementById("toast");
+
+let B = null;  // bootstrap: texts, limits, saved contacts
+const S = {
+  tab: "catalog",
+  stack: [],        // views opened on top of a tab
+  rev: 0,           // bumps on every render; stale async results are dropped
+  cat: { city: "", club: "", items: [], total: 0, cities: [], clubs: [], loaded: false },
+  my: null,         // own listings, loaded lazily
+  draft: null,      // unfinished «sell» form survives tab switches
+};
+
+const ICONS = {
+  catalog: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  sell: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+  my: '<path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/>',
+  more: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+};
+function icon(name) {
+  const span = document.createElement("span");
+  span.style.display = "contents";
+  // Static markup from the table above — never user data.
+  span.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + "</svg>";
+  return span.firstChild;
+}
+
+/* ---------------------------------------------------------------- helpers */
+// Builds DOM nodes; text always goes in as text nodes, so user content can never become markup.
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k in el && k !== "list" && k !== "form") el[k] = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat(Infinity)) {
+    if (kid != null && kid !== false) el.append(kid.nodeType ? kid : String(kid));
+  }
+  return el;
+}
+function T(key, vars) {
+  const tpl = (B && B.texts[key]) || key;
+  const all = Object.assign({}, B && B.vars, vars);
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => (all[k] != null ? all[k] : ""));
+}
+const money = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+// «7 мая 2027»: plain numbers like 07.05.2027 confuse people.
+const dmy = (iso) => { const [y, m, d] = iso.split("-").map(Number); return d + " " + T("app.months").split(",")[m - 1] + " " + y; };
+const city = (code) => T("city." + code);
+
+async function api(method, path, body) {
+  const opt = { method, headers: { Authorization: "tma " + tg.initData } };
+  if (body instanceof FormData) opt.body = body;
+  else if (body) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
+  let res, data = null;
+  try {
+    res = await fetch(new URL("api/" + path, document.baseURI), opt);
+    data = await res.json();
+  } catch (e) { /* network or non-JSON answer: handled below */ }
+  if (!res || !res.ok || !data) {
+    const err = new Error((data && data.message) || T("app.err.network"));
+    err.code = data && data.error; err.field = data && data.field; err.status = res && res.status;
+    throw err;
+  }
+  return data;
+}
+
+let toastTimer;
+function toast(text) {
+  $toast.textContent = text;
+  $toast.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $toast.classList.remove("on"), 2800);
+}
+function haptic(kind) {
+  try { tg.HapticFeedback.notificationOccurred(kind); } catch (e) { /* older clients */ }
+}
+function ask(text) {
+  return new Promise((resolve) => {
+    if (tg.isVersionAtLeast && tg.isVersionAtLeast("6.2")) tg.showConfirm(text, resolve);
+    else resolve(window.confirm(text));
+  });
+}
+function openOperator() {
+  try { tg.openTelegramLink(B.support_url); } catch (e) { window.open(B.support_url, "_blank"); }
+}
+function operatorBtn(primary) {
+  return h("button", { class: primary ? "btn" : "btn ghost", type: "button", onclick: openOperator }, T("app.operator"));
+}
+// The listing fee: Telegram's own payment form (a t.me invoice link) or Payme's checkout page (any other link,
+// paid outside Telegram: the bot writes once Payme confirms). Resolves to "paid", "cancelled", "failed" or "pending".
+function payInvoice(url) {
+  return new Promise((resolve) => {
+    if (!url) { resolve("failed"); return; }
+    if (!/^https:\/\/t\.me\//.test(url)) {
+      try { tg.openLink(url); } catch (e) { window.open(url, "_blank"); }
+      resolve("pending"); return;
+    }
+    try { tg.openInvoice(url, resolve); } catch (e) { tg.openTelegramLink(url); resolve("pending"); }
+  });
+}
+function openTg(username) {
+  const url = "https://t.me/" + username;
+  try { tg.openTelegramLink(url); } catch (e) { window.open(url, "_blank"); }
+}
+// What every buyer sees to reach the seller: the name, the phone (tap to call) and Telegram.
+// Taps on the seller's contacts are recorded (who reached which seller), never blocking the tap itself.
+function trackContact(id, action) {
+  if (!id) return;
+  try {
+    fetch(new URL("api/listings/" + id + "/contact", document.baseURI), {
+      method: "POST", keepalive: true,
+      headers: { Authorization: "tma " + tg.initData, "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    }).catch(() => {});
+  } catch (e) { /* offline: the tap still works */ }
+}
+function sellerCard(s, listingId) {
+  const tel = String(s.phone || "").replace(/[^\d+]/g, "");
+  const copy = () => {
+    trackContact(listingId, "copy");
+    try { navigator.clipboard.writeText(s.phone).then(() => toast(T("app.seller.copied"))); } catch (e) { /* no clipboard */ }
+  };
+  return [
+    h("div", { class: "card rows" },
+      h("div", null, h("span", { class: "k" }, T("app.seller.title")), h("span", { class: "v" }, s.name)),
+      s.phone ? h("div", { onclick: copy }, h("span", { class: "k" }, T("app.f.phone")), h("span", { class: "v num" }, s.phone)) : null,
+      s.username ? h("div", null, h("span", { class: "k" }, "Telegram"), h("span", { class: "v" }, "@" + s.username)) : null),
+    h("div", { class: "stack" },
+      s.username ? h("button", { class: "btn", type: "button",
+        onclick: () => { trackContact(listingId, "telegram"); openTg(s.username); } }, T("app.seller.tg")) : null,
+      tel ? h("a", { class: s.username ? "btn ghost" : "btn", href: "tel:" + tel,
+        onclick: () => trackContact(listingId, "call") }, T("app.seller.call")) : null),
+  ];
+}
+async function busy(button, fn) {
+  if (button.disabled) return;
+  button.disabled = true;
+  try { await fn(); } catch (e) { haptic("error"); toast(e.message); } finally { button.disabled = false; }
+}
+
+/* ---------------------------------------------------------------- navigation */
+function current() { return S.stack.length ? S.stack[S.stack.length - 1] : { name: S.tab }; }
+// «Back» returns to the same place in the list: each screen keeps how far it was scrolled when left.
+const scrolls = {};
+const scrollKey = () => S.stack.length + ":" + (S.stack.length ? current().name : S.tab);
+function go(view) { scrolls[scrollKey()] = window.scrollY; S.stack.push(view); render(); }
+function back() {
+  S.stack.pop(); render();
+  const y = scrolls[scrollKey()];
+  if (y) { window.scrollTo(0, y); requestAnimationFrame(() => window.scrollTo(0, y)); }
+}
+function replace(view) { S.stack[S.stack.length - 1] = view; render(); }
+function switchTab(tab) { S.tab = tab; S.stack = []; render(); }
+
+function render() {
+  const view = current();
+  const rev = ++S.rev;
+  document.body.classList.remove("gate");
+  document.body.classList.toggle("pushed", S.stack.length > 0);
+  try { S.stack.length ? tg.BackButton.show() : tg.BackButton.hide(); } catch (e) { /* older clients */ }
+  $tabs.replaceChildren(...["catalog", "sell", "my", "more"].map((tab) =>
+    h("button", { type: "button", "aria-current": tab === S.tab ? "page" : null, onclick: () => switchTab(tab) },
+      icon(tab), h("span", null, T("app.tab." + tab)))));
+  $view.replaceChildren(...[S.stack.length ? null : brand(), VIEWS[view.name](view, rev)].flat().filter(Boolean));  // views leave null for absent parts
+  window.scrollTo(0, 0);
+}
+// Run an async load for the view that is on screen now; ignore the result if the user moved on.
+function load(rev, promise, done) {
+  promise.then((data) => { if (rev === S.rev) done(data); }, (err) => { if (rev === S.rev) failed(err); });
+}
+function failed(err) {
+  $view.replaceChildren(h("div", { class: "empty" }, h("p", null, err.message),
+    h("button", { class: "btn ghost", type: "button", onclick: render }, T("app.retry"))));
+}
+const spinner = () => h("div", { class: "spinner" });
+// A full-screen wait with a title and a line under it; returns a function that removes it.
+function overlay(title, sub) {
+  const box = h("div", { class: "overlay", role: "alert", "aria-busy": "true" },
+    spinner(), h("div", { class: "title" }, title), sub ? h("div", { class: "sub" }, sub) : null);
+  document.body.append(box);
+  return {
+    set: (t, s) => { box.querySelector(".title").textContent = t; const el = box.querySelector(".sub"); if (el && s) el.textContent = s; },
+    close: () => box.remove(),
+  };
+}
+const bar = (w, hgt) => h("span", { class: "sk", style: "width:" + w + (hgt ? ";height:" + hgt : "") });
+// Placeholder list shaped like listingRow cards, shown until the first page arrives.
+const skeletonRows = (n = 4) => h("div", { class: "stack", "aria-busy": "true", "aria-label": T("app.loading") },
+  Array.from({ length: n }, (_, i) => h("div", { class: "card item ghost", "aria-hidden": "true" },
+    h("div", { class: "main" }, bar(["62%", "48%", "70%", "55%"][i % 4], "14px"), bar("40%"), bar("26%", "18px")),
+    h("div", { class: "price" }, bar("64px", "14px"), bar("32px")))));
+// Placeholder for the listing detail screen: price hero + rows card.
+const skeletonDetail = () => h("div", { "aria-busy": "true", "aria-label": T("app.loading") },
+  h("div", { class: "card hero", "aria-hidden": "true" }, bar("30%"), bar("55%", "28px")),
+  h("div", { class: "card rows", "aria-hidden": "true", style: "margin-top:12px" },
+    [0, 1, 2].map(() => h("div", null, bar("30%"), bar("35%")))));
+const logo = (big) => h("span", { class: big ? "logo big" : "logo", role: "img", "aria-label": "Repass" });
+const brand = () => h("header", { class: "brand" }, logo(), h("span", { class: "wordmark" }, "Repass"));
+const splash = () => h("div", { class: "splash" }, logo(true), spinner());
+
+/* ---------------------------------------------------------------- catalog */
+function listingRow(l, onclick, extra) {
+  return h("button", { class: "card item" + (l.sold && !extra ? " sold" : ""), type: "button", onclick },
+    h("div", { class: "main" },
+      clubTag(l),
+      h("div", { class: "title" }, isPromo(l) ? l.tariff : leftText(l, "app.left_title")),
+      h("div", { class: "sub" }, city(l.city) + " · " + T("app.until", { date: dmy(l.end_date) })),
+      extra || (l.sold ? soldBadge() : promoBadge(l))),  // negotiable and installments: on the listing itself
+    h("div", { class: "price num" }, money(buyerTotal(l)), h("small", null, T("app.sum"))));
+}
+const soldBadge = () => h("span", { class: "badge sold" }, "✅ " + T("app.sold_badge"));
+function cheapestFlag() {
+  const flag = h("span", { class: "flag" }, T("app.badge.cheapest"));
+  flag.insertAdjacentHTML("afterbegin", '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>');
+  return flag;
+}
+const priceBadge = (l) => h("span", { class: "badge ptype " + (l.price_negotiable ? "deal" : "fixed") },
+  T(l.price_negotiable ? "app.badge.negotiable" : "app.badge.fixed"));
+// What the buyer pays in all: the price plus the installments still due to 1Fit. Shown as the price.
+// What the buyer pays in all (the server adds the installments still due to 1Fit; buyers never see them apart).
+const buyerTotal = (l) => l.price_total || l.price;
+const isPromo = (l) => l.kind === "promo";
+// Whose membership: 1Fit, Ozone, Fitness Embassy, UFC Gym. Old listings have no club: they are all 1Fit.
+const clubOf = (l) => l.club || "1fit";
+const clubName = (code) => ((B.vars.clubs || []).find((c) => c.code === code) || { name: "1Fit" }).name;
+function clubLogo(code) {
+  const src = "clubs/" + code + (code === "1fit" ? ".svg" : ".png");
+  return h("span", { class: "clogo" + (code === "1fit" ? " fit" : ""), "aria-hidden": "true" }, h("img", { src, alt: "", loading: "lazy" }));
+}
+function verifiedBadge() {
+  const b = h("span", { class: "vbadge" }, T("app.verified"));
+  b.insertAdjacentHTML("afterbegin", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>');
+  return b;
+}
+const clubTag = (l) => isPromo(l) && !l.verified ? null : h("div", { class: "club-tag" },
+  isPromo(l) ? null : clubLogo(clubOf(l)), isPromo(l) ? null : clubName(clubOf(l)), l.verified && !l.sold ? verifiedBadge() : null);
+// Months left instead of a tariff name: «12 months» made buyers think they got all 12.
+// «52 дн.» / «7 мес.» from today to an end date — the same rule as the server's remaining().
+function leftFor(endIso) {
+  const days = Math.max(0, Math.round((new Date(endIso) - new Date(new Date().toISOString().slice(0, 10))) / 864e5));
+  return days >= 60 ? Math.max(1, Math.round(days / 30.4375)) + " " + T("app.unit.m") : days + " " + T("app.unit.d");
+}
+// The day after ``n`` more days: 1Fit bonus days start after the date on the card.
+function addDays(iso, n) {
+  if (!iso || !Number(n)) return iso;
+  const t = new Date(iso + "T00:00:00Z");
+  t.setUTCDate(t.getUTCDate() + Number(n));
+  return t.toISOString().slice(0, 10);
+}
+// «Проверьте объявление»: the seller confirms the summary before it goes to moderation.
+function confirmSheet(title, rows, okText, backText) {
+  return new Promise((resolve) => {
+    const done = (ok) => { box.remove(); resolve(ok); };
+    const box = h("div", { class: "overlay sheet", role: "dialog", "aria-modal": "true" },
+      h("div", { class: "sheet-card" },
+        h("div", { class: "title" }, title),
+        h("div", { class: "rows" }, rows.filter(Boolean).map(([k, v, strong]) =>
+          h("div", { class: strong ? "strong" : null }, h("span", { class: "k" }, k), h("span", { class: "v num" }, v)))),
+        h("button", { class: "btn", type: "button", onclick: () => done(true) }, okText),
+        h("button", { class: "btn ghost", type: "button", onclick: () => done(false) }, backText)));
+    document.body.append(box);
+  });
+}
+const leftText = (l, key) => T(key || "app.left", { n: l.left.n, unit: T("app.unit." + l.left.unit) });
+const promoBadge = (l) => isPromo(l) ? [h("span", { class: "badge ptype inst" }, "🎁 " + T("app.badge.promo")), " "] : null;
+// «5 380 000 сум за 10 мес. вместо 6 330 000»: the whole sum for the days left, installments included, next to 1Fit.
+// A price far too low for the whole term («485 000 for 9 months») is flagged, never shown as a −92% bargain.
+const suspicious = (l) => !!(l.month_cost && l.month_cost.suspicious);
+const sumLabel = (l) => T("app.sum") + (l.price_negotiable ? " · " + T("app.negotiable") : "");
+
+async function fetchCatalog(reset) {
+  const c = S.cat;
+  const offset = reset ? 0 : c.items.length;
+  const data = await api("GET", "catalog?city=" + encodeURIComponent(c.city) + "&club=" + encodeURIComponent(c.club || "") + "&offset=" + offset);
+  c.items = reset ? data.items : c.items.concat(data.items);
+  c.total = data.total; c.cities = data.cities; c.city = data.city; c.clubs = data.clubs || []; c.club = data.club || ""; c.loaded = true;
+}
+
+function catalogView(view, rev) {
+  const c = S.cat;
+  const head = h("div", { class: "titlebar" }, h("h1", null, T("app.catalog.title")), langSwitch());
+  if (!c.loaded) {
+    load(rev, fetchCatalog(true), render);
+    return [head, skeletonRows()];
+  }
+  const pick = (code) => { c.city = code; c.loaded = false; render(); };
+  const pickClub = (code) => { c.club = code; c.loaded = false; render(); };
+  // Clubs first: a buyer looks for their gym, then for the city.
+  // Every club is always there, even without listings yet: buyers see which clubs Repass covers.
+  const clubCount = (code) => (c.clubs.find((x) => x.code === code) || { count: 0 }).count;
+  const clubChips = h("div", { class: "chips" },
+    h("button", { class: "chip", type: "button", "aria-pressed": String(!c.club), onclick: () => pickClub("") }, T("app.catalog.all_clubs")),
+    (B.vars.clubs || []).map((x) => h("button", { class: "chip", type: "button", "aria-pressed": String(c.club === x.code), onclick: () => pickClub(x.code) },
+      clubLogo(x.code), x.name, clubCount(x.code) ? h("span", { class: "n num" }, clubCount(x.code)) : null)));
+  const chips = c.cities.length > 1 || c.city ? h("div", { class: "chips" },
+    h("button", { class: "chip", type: "button", "aria-pressed": String(!c.city), onclick: () => pick("") }, T("app.catalog.all")),
+    c.cities.map((x) => h("button", { class: "chip", type: "button", "aria-pressed": String(c.city === x.code), onclick: () => pick(x.code) },
+      city(x.code), h("span", { class: "n num" }, x.count)))) : null;
+  if (!c.items.length) {
+    return [head, clubChips, chips, h("div", { class: "empty" }, h("p", null, T("app.catalog.empty")), operatorBtn())];
+  }
+  const more = c.items.length < c.total
+    ? h("button", { class: "btn ghost", type: "button", onclick: (e) => busy(e.currentTarget, async () => { await fetchCatalog(false); render(); }) }, T("app.catalog.more"))
+    : null;
+  // «Cheapest»: the lowest price shown among the memberships loaded. A promo code is a different thing
+  // and is naturally cheaper, so flagging it would mislead.
+  const memberships = c.items.filter((l) => !isPromo(l) && !l.sold);
+  const best = memberships.length > 1
+    ? memberships.reduce((a, b) => (buyerTotal(b) < buyerTotal(a) ? b : a)) : null;
+  const rows = c.items.map((l) => {
+    const row = listingRow(l, () => go({ name: "listing", id: l.id }));
+    const flags = [l === best ? cheapestFlag() : null].filter(Boolean);
+    return flags.length ? h("div", { class: "best" }, row, h("div", { class: "flags" }, flags)) : row;
+  });
+  return [head, clubChips, chips, h("div", { class: "stack" }, rows, more)];
+}
+
+function publicRows(l) {
+  return h("div", { class: "card rows" },
+    h("div", null, h("span", { class: "k" }, T("app.f.city")), h("span", { class: "v" }, city(l.city))),
+    isPromo(l)
+      ? h("div", null, h("span", { class: "k" }, T("app.f.what_promo")), h("span", { class: "v" }, l.tariff))
+      : h("div", null, h("span", { class: "k" }, T("app.f.time_left")), h("span", { class: "v num" }, leftText(l))),
+    h("div", null, h("span", { class: "k" }, T(isPromo(l) ? "app.f.date_promo" : "app.f.date")), h("span", { class: "v num" }, dmy(l.end_date))),
+    l.freeze_days ? h("div", null, h("span", { class: "k" }, "❄️ " + T("app.f.freeze_short")),
+      h("span", { class: "v num" }, T("app.freeze_row", { days: l.freeze_days }))) : null,
+    !isPromo(l) && l.bonus_days ? h("div", null, h("span", { class: "k" }, "🎁 " + T("app.f.bonus_short")),
+      h("span", { class: "v num" }, T("app.bonus_row", { days: l.bonus_days }))) : null,
+    // No «Оплата» row: the installments are already in the price card, split into what goes where.
+  );
+}
+function priceHero(l) {
+  return h("div", { class: "card hero" },
+    h("div", { class: "label" }, T("app.f.price")),
+    h("div", { class: "value num" }, money(buyerTotal(l)) + " ", h("small", null, T("app.sum"))),
+    promoBadge(l), priceBadge(l));
+}
+
+function listingView(view, rev) {
+  if (!view.data) {
+    load(rev, api("GET", "listings/" + view.id), (data) => {
+      if (data.own) replace({ name: "mine", id: view.id, listing: data.listing });
+      else { view.data = data; render(); }
+    });
+    return skeletonDetail();
+  }
+  const l = view.data.listing;
+  return [
+    h("h1", null, T("app.listing", { id: l.id })),
+    clubTag(l),
+    h("div", { class: "stack" },
+      priceHero(l), publicRows(l),
+      l.description ? h("div", { class: "card text" }, l.description) : null,
+      // sold: the listing stays a few days to show deals happen here, but nobody calls the seller any more
+      l.sold ? h("div", { class: "callout" }, T("app.sold_note")) : h("h2", null, T("app.seller.title")),
+      l.sold ? null : sellerCard(l.seller, l.id),
+      l.sold ? null : h("p", { class: "note" }, "🛡 " + T("app.seller.safety"))),
+  ];
+}
+
+/* ---------------------------------------------------------------- forms */
+function field(label, control, opts) {
+  opts = opts || {};
+  const err = h("div", { class: "err", hidden: true });
+  const wrap = h("label", { class: "field" }, h("span", null, label), control,
+    opts.hint ? h("div", { class: "hint" }, opts.hint) : null, opts.extra, err);
+  control.addEventListener("input", () => setError(wrap, ""));
+  wrap.error = err;
+  return wrap;
+}
+function setError(wrap, message) {
+  wrap.classList.toggle("invalid", !!message);
+  if (wrap.error) { wrap.error.textContent = message; wrap.error.hidden = !message; }
+}
+function showFieldError(fields, err) {
+  const wrap = fields[err.field];
+  haptic("error");
+  if (!wrap) { toast(err.message); return; }
+  setError(wrap, err.message);
+  if (!wrap.error) toast(err.message);
+  wrap.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+function newDraft(l) {
+  return l
+    ? { id: l.id, city: l.city, tariff: l.tariff, end_date: l.card_end_date || l.end_date, bonus: l.bonus_days ? String(l.bonus_days) : "", start_date: l.start_date || "", price: String(l.price), negotiable: !!l.price_negotiable, description: l.description,
+        kind: l.kind, club: clubOf(l), code: l.promo_code || "", plan: B.limits.plans.includes(l.tariff_days) ? l.tariff_days : null,
+        freeze: !!l.freeze_days, freezeDays: l.freeze_days ? String(l.freeze_days) : "", paid: l.paid_in_full, monthly: l.monthly_payment ? String(l.monthly_payment) : "", left: l.payments_left ? String(l.payments_left) : "", leftTyped: !!l.payments_left,
+        name: l.seller_name, phone: l.seller_phone, shots: l.screenshot_count ? ["keep"] : [], keptShots: l.screenshot_count || 0,  // earlier screenshots stay attached
+        fee: l.fee_due ? l.fee : 0 }  // paid once, edited for free
+    : { id: null, city: "", tariff: "", end_date: "", bonus: "", start_date: "", price: "", negotiable: false, description: "", kind: B.vars.promo_enabled ? null : "membership", club: null, code: "", plan: null, freeze: false, freezeDays: "", paid: null, monthly: "", left: "", name: B.user.name, phone: B.user.phone, shots: [], keptShots: 0, fee: B.vars.fee };
+}
+
+function sellForm(d, onDone, onKind) {
+  const L = B.limits;
+  const bind = (el, key, clean) => { el.addEventListener("input", () => { d[key] = clean ? clean(el) : el.value; }); return el; };
+
+  const citySel = bind(h("select", { required: true },
+    h("option", { value: "", disabled: true, hidden: true }, T("app.sell.city_ph")),
+    B.cities.map((c) => h("option", { value: c }, city(c)))), "city");
+  citySel.value = d.city;
+  citySel.addEventListener("change", () => { d.city = citySel.value; setError(fields.city, ""); });
+  const tariff = bind(h("input", { type: "text", maxLength: L.tariff_max, placeholder: T("app.sell.what_promo_ph"), value: d.tariff }), "tariff");
+  const date = bind(h("input", { type: "date", min: L.date_min, max: L.date_max, value: d.end_date }), "end_date");
+  date.addEventListener("change", () => { d.end_date = date.value; guessLeft(); loadAdvice(); });
+  // The end date comes from the screenshot of the 1Fit card: shown as read, typed only when it was not read
+  // or the seller taps «Correct» (typed dates were the mistakes: «до 11.09.2027» next to a card «до 18.04.2027»).
+  const dateShot = h("div", { class: "row" });
+  const drawDate = () => {
+    const locked = d.kind === "membership" && d.dateFromShot && d.end_date;
+    date.hidden = !!locked;
+    dateShot.hidden = !locked;
+    if (locked) {
+      dateShot.replaceChildren(h("div", { class: "grow num" }, "📸 " + T("app.sell.date_from_shot", { date: dmy(d.end_date) })),
+        h("button", { class: "btn small ghost", type: "button", onclick: () => { d.dateFromShot = false; drawDate(); date.focus(); } },
+          T("app.sell.date_fix")));
+    }
+  };
+
+  // What is sold: a membership or a promo code. Fixed once listed.
+  const kindErr = h("div", { class: "err", hidden: true });
+  const kindSeg = h("div", { class: "seg", role: "group", "aria-label": T("app.f.kind") },
+    ["membership", "promo"].map((k) => h("button", { type: "button", "data-kind": k, onclick: () => {
+      d.kind = k; setError(fields.kind, ""); drawKind();
+    } }, T("app.kind." + k))));
+  const kindWrap = h("div", { class: "field" }, h("span", null, T("app.f.kind")), kindSeg, kindErr);
+  kindWrap.error = kindErr;
+  const code = bind(h("input", { type: "text", maxLength: 40, autocomplete: "off", autocapitalize: "characters", spellcheck: false, value: d.code }), "code");
+
+  // Whose membership: picked first. Only 1Fit has its tariffs, installments, bonus days and a worked-out price.
+  const fit = () => d.kind === "membership" && d.club === "1fit";
+  const clubErr = h("div", { class: "err", hidden: true });
+  const clubGrid = h("div", { class: "club-grid", role: "group", "aria-label": T("app.f.club") },
+    (B.vars.clubs || []).map((c) => h("button", { type: "button", "data-club": c.code, onclick: () => {
+      if (d.club === c.code) return;
+      const wasFit = d.club === "1fit";
+      d.club = c.code; setError(fields.club, "");
+      if (c.code !== "1fit") { d.paid = true; d.bonus = ""; bonus.value = ""; }
+      else if (!wasFit) d.paid = null;  // 1Fit: fully paid or installments is asked
+      drawKind();
+    } }, clubLogo(c.code), h("span", null, c.name))));
+  const clubWrap = h("div", { class: "field" }, h("span", null, T("app.f.club")), clubGrid,
+    h("div", { class: "hint" }, T("app.sell.club_hint")), clubErr);
+  clubWrap.error = clubErr;
+  const drawClub = () => clubGrid.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(d.club === b.dataset.club)));
+
+  // Fully paid or installment: «9 months, 500 000» turned out to be 500 000 every month.
+  const payErr = h("div", { class: "err", hidden: true });
+  const paySeg = h("div", { class: "seg", role: "group", "aria-label": T("app.f.payment") },
+    [true, false].map((full) => h("button", { type: "button", "data-full": String(full), onclick: () => { d.paid = full; setError(fields.payment, ""); drawPay(); } },
+      T(full ? "app.pay.full" : "app.pay.installment"))));
+  paySeg.addEventListener("click", () => loadAdvice());
+  const payWrap = h("div", { class: "field" }, h("span", null, T("app.f.payment")), paySeg,
+    h("div", { class: "hint" }, T("app.sell.payment_hint")), payErr);
+  payWrap.error = payErr;
+  const digitsInput = (key, max, placeholder) => {
+    const el = h("input", { type: "text", inputMode: "numeric", placeholder, value: d[key] ? (max > 3 ? money(d[key]) : d[key]) : "" });
+    el.addEventListener("input", () => {
+      d[key] = el.value.replace(/\D/g, "").replace(/^0+/, "").slice(0, max);
+      el.value = d[key] ? (max > 3 ? money(d[key]) : d[key]) : "";
+    });
+    return el;
+  };
+  // Unused freeze days go to the buyer with the membership.
+  const freeze = h("input", { type: "checkbox", checked: d.freeze });
+  const freezeRow = h("label", { class: "check" }, freeze, h("span", null, "❄️ " + T("app.f.freeze")));
+  const freezeDays = digitsInput("freezeDays", 3, "20");
+  freeze.addEventListener("change", () => { d.freeze = freeze.checked; drawFreeze(); });
+  // 1Fit bonus days start after the card's end date: the buyer gets them on top, the price counts them.
+  const bonus = digitsInput("bonus", 3, "60");
+  bonus.addEventListener("input", () => loadAdvice());
+  const realEnd = () => addDays(d.end_date, fit() ? d.bonus : 0);
+  const monthly = digitsInput("monthly", 9, "500 000");
+  const left = digitsInput("left", 2, "9");
+  // Installments: no price to type — it is what is left to pay 1Fit, monthly × payments left.
+  const isInst = () => fit() && d.paid === false;
+  const instLine = h("div", { class: "callout", hidden: true });
+  const drawInst = () => {
+    instLine.hidden = !isInst();
+    if (!isInst()) return;
+    const m = Number(d.monthly), n = Number(d.left);
+    if (m && n) d.price = String(m * n);
+    instLine.textContent = "💰 " + T("app.sell.price_installment",
+      { monthly: m ? money(m) : "…", left: n || "…", price: m && n ? money(m * n) : "…" });
+  };
+  [monthly, left].forEach((el) => el.addEventListener("input", () => drawInst()));
+  monthly.addEventListener("input", () => loadAdvice());
+  left.addEventListener("input", () => { d.leftTyped = true; loadAdvice(); });
+  // Usually one payment per month until the end date: filled in, the seller only corrects it.
+  const guessLeft = () => {
+    if (d.leftTyped || !d.end_date) return;
+    const days = (new Date(d.end_date) - new Date(new Date().toISOString().slice(0, 10))) / 864e5;
+    const n = Math.min(60, Math.max(1, Math.round(days / 30.4375)));
+    if (!(n > 0)) return;
+    d.left = String(n); left.value = d.left;
+  };
+
+  // The contacts every buyer sees: the name and phone typed here, Telegram from the seller's profile.
+  const name = bind(h("input", { type: "text", autocomplete: "name", maxLength: L.name_max, value: d.name || "" }), "name");
+  const phone = bind(h("input", { type: "tel", autocomplete: "tel", inputMode: "tel", placeholder: "+998 90 123 45 67", value: d.phone || "" }), "phone");
+  const tgName = B.user.username ? "@" + B.user.username : T("app.sell.no_username");
+  const price = h("input", { type: "text", inputMode: "numeric", placeholder: "2 000 000", value: d.price ? money(d.price) : "" });
+  const setPrice = (digits) => {
+    d.price = digits;
+    price.value = digits ? money(digits) : "";
+    drawAdviceCheck();
+  };
+  price.addEventListener("input", () => setPrice(price.value.replace(/\D/g, "").replace(/^0+/, "").slice(0, 9)));
+
+  // Recommended price: asked from the server whenever the end date or the installments change.
+  let advice = null, adviceReq = 0, adviceTimer;
+  const adviceCard = h("div", { class: "card advice", hidden: true });
+  const priceWarn = h("div", { class: "callout bad", hidden: true });  // inside the price card
+  const drawAdviceCheck = () => {
+    if (!autoPrice()) { priceWarn.hidden = true; return; }  // the seller's own price: no limits, no hints
+    const p = Number(d.price);
+    let text = "";
+    if (advice && p && advice.max && p > advice.max) text = T("app.advice.max", { max: money(advice.max) });
+    else if (advice && p && advice.max && p < advice.min) text = T("app.advice.low");
+    priceWarn.textContent = text;
+    priceWarn.hidden = !text;
+  };
+  // AUTO_PRICE: a membership costs the recommended price; the card shows it instead of a price field.
+  const autoPrice = () => B.vars.auto_price && fit() && d.paid !== false;
+  const drawAuto = () => {
+    adviceCard.hidden = false;
+    if (!advice) {
+      adviceCard.replaceChildren(h("div", { class: "label" }, "💰 " + T("app.sell.price_auto")),
+        h("p", null, T("app.sell.price_auto_wait")));
+      return;
+    }
+    adviceCard.replaceChildren(...[
+      h("div", { class: "label" }, "💰 " + T("app.sell.price_auto")),
+      h("div", { class: "row" }, h("div", { class: "value num" }, money(advice.recommended) + " " + T("app.sum"))),
+      d.end_date ? h("p", { class: "giving num" }, "📦 " + T("app.sell.giving", { left: leftFor(realEnd()), date: dmy(realEnd()) })) : null,
+      h("p", null, T("app.sell.price_auto_hint")),
+      advice.max ? h("p", null, T("app.advice.text", { total: money(advice.total), fit_total: money(advice.fit_total), left: d.end_date ? leftFor(realEnd()) : "", saving: advice.saving }))
+        : h("p", null, T("app.advice.heavy", { total: money(advice.installments) })),
+      advice.max && advice.installments ? h("p", null, T("app.advice.installment", { total: money(advice.installments) })) : null,
+    ].filter(Boolean));
+  };
+  const drawAdvice = () => {
+    if (autoPrice()) {
+      setPrice(advice ? String(advice.recommended) : "");
+      drawAuto();
+      return;
+    }
+    // a suggestion from 1Fit's prices today: «Set» takes it, or the seller types their own
+    const show = fit() && !!advice && !isInst();
+    adviceCard.hidden = !show;
+    if (!show) { drawAdviceCheck(); return; }
+    const use = h("button", { class: "btn small", type: "button", onclick: () => { setPrice(String(advice.recommended)); haptic("success"); } },
+      T("app.advice.use"));
+    adviceCard.replaceChildren(...[  // the DOM call would print absent parts as «null»: drop them
+      h("div", { class: "label" }, "💡 " + T("app.advice.title")),
+      h("div", { class: "row" }, h("div", { class: "value num" }, money(advice.recommended) + " " + T("app.sum")), use),
+      advice.max
+        ? h("p", null, T("app.advice.text", { total: money(advice.total), fit_total: money(advice.fit_total), left: d.end_date ? leftFor(realEnd()) : "", saving: advice.saving }))
+        : h("p", null, T("app.advice.heavy", { total: money(advice.installments) })),
+      advice.max && advice.installments ? h("p", null, T("app.advice.installment", { total: money(advice.installments) })) : null,
+      h("p", { class: "hint" }, T("app.advice.own"))].filter(Boolean));
+    drawAdviceCheck();
+  };
+  const loadAdvice = () => {
+    clearTimeout(adviceTimer);
+    adviceTimer = setTimeout(async () => {
+      if (!fit() || !d.end_date || isInst()) { advice = null; drawAdvice(); return; }
+      const req = ++adviceReq;
+      try {
+        const res = await api("POST", "advice", { end_date: d.end_date, bonus_days: d.bonus || 0, paid_in_full: d.paid,
+          monthly_payment: d.paid === false ? d.monthly : null, payments_left: d.paid === false ? d.left : null });
+        if (req === adviceReq) { advice = res.advice; drawAdvice(); }
+      } catch (e) { /* no advice is fine: the form still works */ }
+    }, 250);
+  };
+  const negotiable = h("input", { type: "checkbox", checked: d.negotiable });
+  negotiable.addEventListener("change", () => { d.negotiable = negotiable.checked; });
+  const negotiableRow = h("label", { class: "check" }, negotiable, h("span", null, T("app.sell.negotiable")));
+
+  const counter = h("span", { class: "counter num" });
+  const desc = bind(h("textarea", { maxLength: L.desc_max, placeholder: T("app.sell.desc_ph"), value: d.description }), "description");
+  const drawCounter = () => { counter.textContent = desc.value.length + "/" + L.desc_max; };
+  desc.addEventListener("input", drawCounter);
+
+
+  // Screenshots of the 1Fit membership card (up to 3): uploaded right away, the form keeps signed references.
+  // Only the admin sees them. What Tesseract reads off them (tariff, end date, freeze days) fills the empty fields.
+  const MAX_SHOTS = 3;
+  const file = h("input", { type: "file", accept: "image/*", multiple: true, hidden: true });
+  const shotRow = h("div", { class: "row" });
+  const shotCount = () => d.shots.reduce((n, s) => n + (s === "keep" ? d.keptShots : 1), 0);
+  const drawShot = (loading) => {
+    shotRow.classList.remove("invalid");
+    const n = shotCount();
+    shotRow.replaceChildren(
+      h("div", { class: "grow" }, h("div", null, "🔒 " + T("app.sell.shots", { n, max: MAX_SHOTS })),
+        h("div", { class: "small muted" }, loading ? T("app.sell.shot_loading")
+          : T((B.vars.shot_required ? "app.sell.shots_hint_required" : "app.sell.shots_hint") + (B.vars.ocr ? "" : "_plain")))),
+      loading ? "" : h("div", { class: "shot-btns" },
+        n ? h("button", { class: "btn small danger", type: "button", onclick: () => { d.shots = []; drawShot(); } }, T("app.sell.shot_remove")) : null,
+        n < MAX_SHOTS ? h("button", { class: "btn small", type: "button", onclick: () => file.click() }, T("app.sell.shot_add")) : null));
+  };
+  const applyRead = (read) => {
+    if (!fit()) return;  // the reader knows 1Fit's card only
+    const filled = [];
+    // The card's date wins over an empty or earlier-read one, never over a date the seller corrected by hand.
+    if (read.end_date && d.kind === "membership" && (!d.end_date || d.dateFromShot)) {
+      d.end_date = date.value = read.end_date; d.dateFromShot = true; drawDate(); filled.push(T("app.f.date"));
+    } else if (read.end_date && !d.end_date) { d.end_date = date.value = read.end_date; filled.push(T("app.f.date")); }
+    if (read.freeze_days && !d.freeze) {
+      d.freeze = freeze.checked = true; d.freezeDays = freezeDays.value = String(read.freeze_days);
+      drawFreeze(); filled.push(T("app.f.freeze_short"));
+    }
+    if (read.bonus_days && !d.bonus && d.kind === "membership") {
+      d.bonus = bonus.value = String(read.bonus_days); filled.push(T("app.f.bonus_short"));
+    }
+    if (filled.length) { guessLeft(); loadAdvice(); toast(T("app.sell.shot_filled", { fields: filled.join(", ") })); }
+  };
+  file.addEventListener("change", async () => {
+    const picked = [...file.files].slice(0, MAX_SHOTS - shotCount());
+    file.value = "";
+    if (!picked.length) return;
+    const sub = T(B.vars.ocr ? "app.sell.shot_wait_read" : "app.sell.shot_wait_plain");
+    const wait = overlay(T("app.sell.shot_wait", { n: 1, total: picked.length }), sub);
+    drawShot(true);
+    try {
+      for (const [i, one] of picked.entries()) {
+        wait.set(T("app.sell.shot_wait", { n: i + 1, total: picked.length }), sub);
+        try {
+          const body = new FormData();
+          body.append("file", one);
+          const res = await api("POST", "screenshot", body);
+          d.shots.push({ file_id: res.file_id, sig: res.sig });
+          if (res.read) applyRead(res.read);
+        } catch (err) { haptic("error"); toast(err.message); }
+      }
+    } finally {
+      wait.close();
+      drawShot();
+    }
+  });
+
+  const fields = {
+    screenshot: shotRow,
+    kind: kindWrap,
+    club: clubWrap,
+    promo_code: field(T("app.f.code"), code, { hint: "🔒 " + T("app.sell.code_hint") }),
+    city: field(T("app.f.city"), citySel),
+    tariff: field(T("app.f.what_promo"), tariff),
+    end_date: field(T("app.f.date"), date, { extra: dateShot }),
+    payment: payWrap,
+    monthly_payment: field(T("app.f.monthly"), monthly),
+    payments_left: field(T("app.f.left"), left, { hint: T("app.sell.left_hint") }),
+    freeze_days: field(T("app.f.freeze_days"), freezeDays),
+    bonus_days: field("🎁 " + T("app.f.bonus"), bonus, { hint: T("app.f.bonus_hint") }),
+    price: field(T("app.f.price"), price, { hint: T("app.sell.price_hint") }),
+    description: field(T("app.f.desc"), desc, { extra: counter }),
+    name: field(T("app.f.name"), name),
+    phone: field(T("app.f.phone"), phone, { hint: T("app.sell.contacts_hint", { tg: tgName }) }),
+  };
+  const priceHint = fields.price.querySelector(".hint");
+  const label = (wrap) => wrap.querySelector("span");
+  const payCard = h("div", { class: "card" }, fields.payment, fields.monthly_payment, fields.payments_left);
+  const clubCard = h("div", { class: "card" }, fields.club);
+  const freezeCard = h("div", { class: "card" }, freezeRow, fields.freeze_days, fields.bonus_days);
+  const drawFreeze = () => { fields.freeze_days.hidden = !d.freeze; };
+  const drawPriceMode = () => { fields.price.hidden = autoPrice() || isInst(); drawInst(); };
+  const drawPay = () => {
+    paySeg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(d.paid === (b.dataset.full === "true"))));
+    fields.monthly_payment.hidden = fields.payments_left.hidden = d.paid !== false;
+    if (d.paid === false) guessLeft();
+    priceHint.textContent = T(d.kind === "promo" ? "app.sell.price_hint_promo"
+      : d.paid === false ? "app.sell.price_hint_installment" : "app.sell.price_hint");
+    drawPriceMode();
+    if (!isInst()) setPrice(d.price || "");  // back to fully paid: the field shows what is there
+  };
+  const drawKind = () => {
+    const promo = d.kind === "promo";
+    kindSeg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(d.kind === b.dataset.kind)));
+    fields.kind.hidden = !!d.id;  // an existing listing keeps what it sells
+    fields.promo_code.hidden = !promo;
+    clubCard.hidden = promo;
+    drawClub();
+    payCard.hidden = !fit();
+    freezeCard.hidden = promo;
+    fields.bonus_days.hidden = !fit();
+    drawFreeze(); drawPriceMode(); drawDate();
+    fields.tariff.hidden = !promo;  // only a promo code says what it gives
+    label(fields.end_date).textContent = T(promo ? "app.f.date_promo" : "app.f.date");
+    drawPay(); loadAdvice();
+    if (onKind) onKind(d.kind);
+  };
+  // What the seller confirms: what is given away, for how much, and how buyers reach them.
+  const summaryRows = () => {
+    const p = Number(d.price), membership = d.kind === "membership";
+    return [
+      membership ? [T("app.f.club"), clubName(d.club)] : [T("app.f.what_promo"), d.tariff],
+      d.end_date ? [membership ? "📦 " + T("app.confirm.giving") : T("app.f.date_promo"),
+        membership ? T("app.confirm.giving_v", { left: leftFor(realEnd()), date: dmy(realEnd()) }) : dmy(d.end_date), membership] : null,
+      membership ? ["❄️ " + T("app.f.freeze_short"), d.freeze ? T("app.freeze_row", { days: d.freezeDays }) : T("app.confirm.none")] : null,
+      fit() && Number(d.bonus) ? ["🎁 " + T("app.f.bonus_short"), T("app.bonus_row", { days: d.bonus })] : null,
+      fit() ? [T("app.f.pay_short"), d.paid === false
+        ? T("app.pay.installment_row", { monthly: money(d.monthly), left: d.left }) : T("app.pay.full_row")] : null,
+      [T("app.f.price"), money(p) + " " + T("app.sum") + (d.negotiable ? " · " + T("app.negotiable") : ""), true],
+      ["📢 " + T("app.my.contacts"), [d.name, d.phone, B.user.username ? "@" + B.user.username : null].filter(Boolean).join(", ")],
+      ["🔒 " + T("app.confirm.shots"), String(shotCount())],
+      d.fee ? ["💳 " + T("app.sell.pay_label"), money(d.fee) + " " + T("app.sum"), true] : null,
+    ];
+  };
+  const submit = h("button", { class: "btn", type: "submit" }, T("app.sell.submit"));
+  const form = h("form", { class: "stack", novalidate: true, onsubmit: async (e) => {
+    e.preventDefault();
+    if (submit.disabled) return;
+    if (!d.kind) { showFieldError(fields, { field: "kind", message: T("app.err.kind") }); return; }
+    if (d.kind === "membership" && !d.club) { showFieldError(fields, { field: "club", message: T("app.err.club") }); return; }
+    if (fit() && d.paid == null) { showFieldError(fields, { field: "payment", message: T("app.err.payment") }); return; }
+    if (d.kind === "membership" && d.freeze && !Number(d.freezeDays)) { showFieldError(fields, { field: "freeze_days", message: T("app.err.freeze_days") }); return; }
+    if (B.vars.shot_required && !shotCount()) { shotRow.classList.add("invalid"); showFieldError(fields, { field: "screenshot", message: T("app.err.shot_required") }); return; }
+    if (!(await confirmSheet(T("app.confirm.title"), summaryRows().filter(Boolean),
+      T("app.confirm.ok"), T("app.confirm.back")))) return;
+    submit.disabled = true;
+    const body = { city: d.city, tariff: d.kind === "promo" ? d.tariff : null, tariff_days: null,
+                   club: d.kind === "membership" ? d.club : null,
+                   freeze_days: d.kind === "membership" && d.freeze ? d.freezeDays : 0, end_date: d.end_date,
+                   bonus_days: fit() ? d.bonus || 0 : 0, start_date: null, price: d.price, price_negotiable: d.negotiable,
+                   kind: d.kind, promo_code: d.kind === "promo" ? d.code : null,
+                   paid_in_full: fit() ? d.paid : true, monthly_payment: d.paid === false ? d.monthly : null, payments_left: d.paid === false ? d.left : null,
+                   description: d.description, name: d.name, phone: d.phone, screenshots: d.shots };
+    const send = () => (d.id ? api("PUT", "listings/" + d.id, body) : api("POST", "listings", body));
+    try {
+      const res = await send();
+      B.user = Object.assign({}, B.user, { name: (d.name || "").trim(), phone: (d.phone || "").trim() });
+      haptic("success");
+      // Saved; an unpaid one goes to moderation once the fee is paid: on to the payment screen.
+      if ("invoice_url" in res) { S.draft = null; S.my = null; S.cat.loaded = false;
+        S.tab = "my"; S.stack = [{ name: "pay", id: res.id, fee: d.fee, url: res.invoice_url }]; render(); return; }
+      onDone(res.id, null);
+    } catch (err) {
+      submit.disabled = false;
+      showFieldError(fields, err);
+    }
+  } },
+    d.id || !B.vars.promo_enabled ? null : h("div", { class: "card" }, fields.kind),
+    clubCard,
+    h("div", { class: "card" }, shotRow, file),
+    h("div", { class: "card" }, fields.city, fields.tariff_days, fields.tariff, fields.end_date, fields.promo_code),
+    payCard,
+    freezeCard,
+    adviceCard,
+    h("div", { class: "card" }, fields.price, instLine, priceWarn, negotiableRow),
+    h("div", { class: "card" }, fields.description),
+    h("h2", null, T("app.sell.contacts")),
+    h("div", { class: "card" }, fields.name, fields.phone),
+    !d.id && B.vars.instagram ? h("div", { class: "card stack", style: "padding:14px 16px" },
+      h("div", null, "📸 " + T("app.sell.instagram")),
+      h("button", { class: "btn ghost", type: "button", onclick: () => {
+        try { tg.openLink(B.vars.instagram); } catch (e) { window.open(B.vars.instagram, "_blank"); }
+      } }, T("app.sell.instagram_btn"))) : null,
+    submit,
+    d.id ? null : legalNote());
+  drawCounter(); drawKind(); drawShot();
+  return form;
+}
+
+function afterSubmit(id, paid) {
+  S.draft = null; S.my = null; S.cat.loaded = false;
+  S.tab = "my"; S.stack = [];
+  render();
+  // paid: null without a fee, "paid" when Telegram took it, anything else: still to pay from «My»
+  toast(paid == null ? T("app.sell.sent", { id }) : paid === "paid" ? T("app.my.paid")
+        : paid === "pending" ? T("app.pay.external") : T("app.sell.unpaid_text"));
+}
+// «Оплатите размещение»: right after «Send to moderation» for an unpaid listing. The listing is saved;
+// it reaches the moderators once the fee is paid. «Later» leaves it in «My», where it can be paid any time.
+function payView(view) {
+  const toMy = (text) => { S.my = null; S.stack = []; S.tab = "my"; render(); if (text) toast(text); };
+  const manual = B.vars.pay_manual;  // until Payme works: the seller pays the operator, an admin confirms
+  const pay = manual ? h("button", { class: "btn", type: "button", onclick: openOperator }, "✍️ " + T("app.payv.manual_btn"))
+    : h("button", { class: "btn", type: "button", onclick: (e) => busy(e.currentTarget, async () => {
+    const url = view.url || (await api("POST", "listings/" + view.id + "/invoice")).invoice_url;
+    view.url = null;  // a fresh link next time: an invoice link may be used once
+    const status = await payInvoice(url);
+    if (status === "pending") { toast(T("app.pay.external")); return; }
+    if (status !== "paid") { haptic("warning"); return; }
+    haptic("success"); toMy(T("app.my.paid"));
+  }) }, "💳 " + T("app.payv.btn", { fee: money(view.fee) }));
+  return [
+    h("h1", null, T("app.payv.title")),
+    h("div", { class: "stack" },
+      h("div", { class: "callout" },
+        h("div", { style: "font-weight:600" }, T("app.payv.saved", { id: view.id })),
+        h("div", { style: "margin-top:4px" }, T(manual ? "app.payv.manual_text" : "app.payv.text", { fee: money(view.fee), id: view.id }))),
+      h("div", { class: "card rows" },
+        h("div", { class: "strong" }, h("span", { class: "k" }, T("app.sell.pay_label")),
+          h("span", { class: "v num" }, money(view.fee) + " " + T("app.sum")))),
+      pay,
+      h("p", { class: "note", style: "margin:0 4px" }, T(manual ? "app.payv.manual_note" : "app.payv.note")),
+      h("button", { class: "btn ghost", type: "button", onclick: () => toMy(T("app.sell.unpaid_text")) }, T("app.payv.later"))),
+  ];
+}
+function sellView() {
+  if (!S.draft) S.draft = newDraft(null);
+  // The title and the intro follow the choice: a membership or a promo code.
+  const title = h("h1"), intro = h("p", { class: "note", style: "margin:0 4px 14px" });
+  const onKind = (kind) => {
+    const key = kind === "promo" ? "promo" : kind === "membership" ? "membership" : "any";
+    title.textContent = T("app.sell.title_" + key);
+    intro.textContent = T("app.sell.intro_" + key);
+  };
+  // Placing a listing is paid: say how much before the seller fills anything in.
+  const fee = B.vars.fee ? h("div", { class: "callout", style: "margin:0 0 14px" },
+    T(B.vars.pay_manual ? "app.sell.fee_manual" : "app.sell.fee", { fee: money(B.vars.fee) })) : null;
+  return [title, fee, intro, sellForm(S.draft, afterSubmit, onKind)];
+}
+function editView(view) {
+  if (!view.draft) view.draft = newDraft(view.listing);
+  return [h("h1", null, T("app.sell.edit_title", { id: view.listing.id })),
+          h("p", { class: "note", style: "margin:0 4px 14px" }, T("app.sell.edit_intro")),
+          sellForm(view.draft, afterSubmit)];
+}
+
+/* ---------------------------------------------------------------- my listings */
+function myView(view, rev) {
+  const head = h("h1", null, T("app.my.title"));
+  if (!S.my) {
+    load(rev, api("GET", "my"), (data) => { S.my = data.items; render(); });
+    return [head, skeletonRows(3)];
+  }
+  if (!S.my.length) {
+    return [head, h("div", { class: "empty" }, h("p", null, T("app.my.empty")),
+      h("button", { class: "btn", type: "button", onclick: () => switchTab("sell") }, T("app.sell.title")))];
+  }
+  return [head, h("div", { class: "stack" }, S.my.map((l) =>
+    listingRow(l, () => go({ name: "mine", id: l.id, listing: l }), h("span", { class: "badge" }, "№" + l.id + " · " + T("status." + l.status)))))];
+}
+
+function mineView(view) {
+  const l = view.listing;
+  const update = (data) => {
+    view.listing = data.listing;
+    if (S.my) S.my = S.my.map((x) => (x.id === data.listing.id ? data.listing : x));
+    S.cat.loaded = false;
+    render();
+  };
+  const act = (key, question, path, doneKey) => h("button", { class: "btn " + (path === "withdraw" ? "danger" : "ghost"), type: "button",
+    onclick: (e) => { const b = e.currentTarget; busy(b, async () => {
+      if (!(await ask(T(question, { id: l.id })))) return;
+      const data = await api("POST", "listings/" + l.id + "/" + path);
+      haptic("success"); update(data); toast(T(doneKey));
+    }); } }, T(key));
+  const pay = B.vars.pay_manual ? h("button", { class: "btn", type: "button", onclick: openOperator }, "✍️ " + T("app.payv.manual_btn"))
+    : h("button", { class: "btn", type: "button", onclick: (e) => busy(e.currentTarget, async () => {
+    const res = await api("POST", "listings/" + l.id + "/invoice");
+    const status = await payInvoice(res.invoice_url);
+    if (status === "pending") { toast(T("app.pay.external")); return; }
+    if (status !== "paid") return;
+    haptic("success"); toast(T("app.my.paid"));
+    S.my = null; S.tab = "my"; S.stack = []; render();  // the bot moves it to moderation as the payment lands
+  }) }, T("app.my.pay", { fee: money(l.fee) }));
+  return [
+    h("h1", null, T("app.listing", { id: l.id })),
+    h("div", { class: "stack" },
+      h("div", { class: "callout" + (l.status === "rejected" || l.status === "removed" ? " bad" : "") },
+        h("div", { style: "font-weight:600" }, T("status." + l.status)),
+        l.reject_reason ? h("div", { style: "margin-top:4px" }, T("app.my.reason", { reason: l.reject_reason })) : null,
+        l.fee_due ? h("div", { style: "margin-top:4px" }, "💳 " + T("app.my.unpaid", { fee: money(l.fee) })) : null),
+      l.can_pay ? pay : null,
+      publicRows(l),
+      l.description ? h("div", { class: "card text" }, l.description) : null,
+      h("div", { class: "card rows" },
+        h("div", { class: "strong" }, h("span", { class: "k" }, T("app.f.price")), h("span", { class: "v num" }, money(l.price) + " " + sumLabel(l)))),
+      h("h2", null, "📢 " + T("app.my.contacts")),
+      h("div", { class: "card rows" },
+        h("div", null, h("span", { class: "k" }, l.seller_name), h("span", { class: "v num" }, l.seller_phone)),
+        B.user.username ? h("div", null, h("span", { class: "k" }, "Telegram"), h("span", { class: "v" }, "@" + B.user.username)) : null),
+      h("h2", null, "🔒 " + T("app.my.private")),
+      h("div", { class: "card rows" },
+        l.promo_code ? h("div", null, h("span", { class: "k" }, T("app.f.code")), h("span", { class: "v num" }, l.promo_code)) : null,
+        l.has_screenshot ? h("div", null, h("span", { class: "k" }, T("app.my.shot_yes"))) : null),
+      h("div", { class: "stack", style: "margin-top:20px" },
+        l.can_edit ? h("button", { class: "btn", type: "button", onclick: () => go({ name: "edit", listing: l }) }, T("app.my.edit")) : null,
+        l.can_sold ? act("app.my.sold", "app.my.sold_q", "sold", "app.my.sold_done") : null,
+        l.can_withdraw ? act("app.my.withdraw", "app.my.withdraw_q", "withdraw", "app.my.withdrawn") : null,
+        operatorBtn())),
+  ];
+}
+
+/* ---------------------------------------------------------------- more */
+function langSwitch() {
+  const setLang = (code, button) => busy(button, async () => {
+    if (code === B.lang) return;
+    B = await api("POST", "lang", { lang: code });
+    document.documentElement.lang = B.lang;
+    render();
+  });
+  return h("div", { class: "card seg mini", role: "group", "aria-label": T("app.more.lang") }, B.langs.map((x) =>
+    h("button", { type: "button", title: x.name, "aria-label": x.name, "aria-pressed": String(x.code === B.lang), onclick: (e) => setLang(x.code, e.currentTarget) }, x.code.toUpperCase())));
+}
+
+// «Sending it, you accept the offer and the user agreement»: the documents open in the browser.
+function openDoc(name) {
+  const url = new URL(name + "?lang=" + B.lang, document.baseURI).href;
+  try { tg.openLink(url); } catch (e) { window.open(url, "_blank"); }
+}
+const docLink = (name, key) => h("a", { href: "#", onclick: (e) => { e.preventDefault(); openDoc(name); } }, T(key));
+const legalNote = () => h("p", { class: "note legal" }, T("app.legal.accept"), " ", docLink("offer", "app.legal.offer_link"),
+  " " + T("app.legal.and") + " ", docLink("terms", "app.legal.terms_link"), ".");
+function moreView() {
+  return [
+    h("h2", { style: "margin-top:0" }, T("app.more.how")),
+    h("div", { class: "card" }, h("ol", { class: "steps" }, ["1", B.vars.auto_price ? "price" : null, "2", "3", "4", "pay", "5", "6"].filter(Boolean).map((i) => h("li", null, T("app.how." + i))))),
+    h("p", { class: "note" }, T("app.how.note1")),
+    h("p", { class: "note" }, T("app.how.note2")),
+    h("h2", null, T("app.more.support")),
+    h("div", { class: "stack" }, h("p", { class: "note", style: "margin-top:0" }, T("app.more.support_text")), operatorBtn(true)),
+    h("h2", null, "📄 " + T("app.more.docs")),
+    h("div", { class: "stack" },
+      h("button", { class: "btn ghost", type: "button", onclick: () => openDoc("offer") }, T("app.legal.offer_title")),
+      h("button", { class: "btn ghost", type: "button", onclick: () => openDoc("terms") }, T("app.legal.terms_title"))),
+  ];
+}
+
+const VIEWS = { catalog: catalogView, listing: listingView, sell: sellView, edit: editView, my: myView, mine: mineView, pay: payView, more: moreView };
+
+/* ---------------------------------------------------------------- start */
+function gate(lines, retry) {
+  document.body.classList.add("gate");
+  $view.replaceChildren(h("div", { class: "empty" }, logo(true), lines.map((x) => h("p", { style: "margin-bottom:8px" }, x)),
+    retry ? h("button", { class: "btn ghost", type: "button", onclick: start }, "↻") : null));
+}
+async function start() {
+  if (!tg || !tg.initData) {
+    gate(["Откройте Repass внутри Telegram — через кнопку в чате с ботом.", "Repass иловасини Telegram ичида, бот билан чатдаги тугма орқали очинг."]);
+    return;
+  }
+  $view.replaceChildren(splash());
+  try {
+    B = await api("GET", "bootstrap");
+  } catch (err) {
+    gate(err.code ? [err.message] : ["Нет связи с сервером. Попробуйте ещё раз.", "Сервер билан алоқа йўқ. Қайтадан уриниб кўринг."], true);
+    return;
+  }
+  document.documentElement.lang = B.lang;
+  render();
+}
+// Brand colours for the page and for Telegram's own chrome around it; follows the user's light/dark theme.
+function applyTheme() {
+  const dark = scheme() === "dark";
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  if (!tg) return;
+  const page = dark ? "#000D1F" : "#F2EEE3", bar = dark ? "#0B1B33" : "#FCFAF4";
+  for (const paint of [() => tg.setHeaderColor(page), () => tg.setBackgroundColor(page), () => tg.setBottomBarColor(bar)]) {
+    try { paint(); } catch (e) { /* older clients */ }
+  }
+}
+if (tg) {
+  try {
+    tg.ready(); tg.expand();
+    tg.BackButton.onClick(back);
+    tg.onEvent("themeChanged", applyTheme);
+  } catch (e) { /* older clients */ }
+}
+applyTheme();
+// Hide the tab bar while the on-screen keyboard is open.
+document.addEventListener("focusin", (e) => { if (e.target.matches("input:not([type=checkbox]):not([type=file]), textarea")) document.body.classList.add("typing"); });
+document.addEventListener("focusout", () => document.body.classList.remove("typing"));
+start();
+</script>
+</body>
+</html>
