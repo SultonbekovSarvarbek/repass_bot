@@ -93,7 +93,9 @@ p { margin: 0; }
 /* the full logo (mark + name); its ink lettering needs a white plate on the dark theme */
 .logo-wide { display: block; box-sizing: content-box; width: 210px; aspect-ratio: 420 / 107; background: var(--logo-wide) center/contain no-repeat; background-origin: content-box; }
 :root[data-theme="dark"] .logo-wide { padding: 14px 18px; border-radius: 18px; background-color: #fff; }
-.splash .spinner { margin-top: 36px; }
+.splash .tagline { margin-top: 22px; max-width: 300px; padding: 0 16px; text-align: center; font-size: 16px; font-weight: 600; line-height: 1.35; text-wrap: balance; }
+.splash .clubs { margin-top: 8px; padding: 0 16px; text-align: center; color: var(--hint); font-size: 13.5px; line-height: 1.4; }
+.splash .spinner { margin-top: 32px; }
 
 /* city filter */
 .chips { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px 14px; padding: 2px 16px; scrollbar-width: none; }
@@ -309,7 +311,7 @@ body.pushed #toast, body.typing #toast { bottom: calc(var(--safe-b) + 16px); }
 </style>
 </head>
 <body class="gate">
-<main id="view"><div class="splash"><span class="logo-wide"></span><div class="spinner"></div></div></main>
+<main id="view"><div class="splash"><span class="logo-wide"></span><p class="tagline">Покупайте и продавайте абонементы известных фитнес-клубов</p><p class="clubs">1Fit · Ozone · Fitness Embassy · UFC Gym</p><div class="spinner"></div></div></main>
 <nav id="tabs"></nav>
 <div id="toast" role="status"></div>
 
@@ -520,7 +522,16 @@ const skeletonDetail = () => h("div", { "aria-busy": "true", "aria-label": T("ap
     [0, 1, 2].map(() => h("div", null, bar("30%"), bar("35%")))));
 const logo = (big) => h("span", { class: big ? "logo big" : "logo", role: "img", "aria-label": "Repass" });
 const brand = () => h("header", { class: "brand" }, logo(), h("span", { class: "wordmark" }, "Repass"));
-const splash = () => h("div", { class: "splash" }, h("span", { class: "logo-wide", role: "img", "aria-label": "Repass" }), spinner());
+// Shown before the texts arrive, so it carries its own: in the language of the last visit, else Telegram's. Clubs: clubs.py.
+const SPLASH = { ru: "Покупайте и продавайте абонементы известных фитнес-клубов", uz: "Машҳур фитнес-клублар абонементларини сотиб олинг ва сотинг" };
+function splashLang() {
+  let saved = null;
+  try { saved = localStorage.getItem("lang"); } catch (e) { /* storage may be blocked */ }
+  const code = saved || (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.language_code) || "ru";
+  return SPLASH[code] ? code : "ru";
+}
+const splash = () => h("div", { class: "splash" }, h("span", { class: "logo-wide", role: "img", "aria-label": "Repass" }),
+  h("p", { class: "tagline" }, SPLASH[splashLang()]), h("p", { class: "clubs" }, "1Fit · Ozone · Fitness Embassy · UFC Gym"), spinner());
 
 /* ---------------------------------------------------------------- catalog */
 function listingRow(l, onclick, extra) {
@@ -1215,6 +1226,7 @@ function langSwitch() {
     if (code === B.lang) return;
     B = await api("POST", "lang", { lang: code });
     document.documentElement.lang = B.lang;
+    try { localStorage.setItem("lang", B.lang); } catch (e) { /* storage may be blocked */ }
     render();
   });
   return h("div", { class: "card seg mini", role: "group", "aria-label": T("app.more.lang") }, B.langs.map((x) =>
@@ -1265,6 +1277,7 @@ async function start() {
     return;
   }
   document.documentElement.lang = B.lang;
+  try { localStorage.setItem("lang", B.lang); } catch (e) { /* storage may be blocked */ }
   render();
 }
 // Brand colours for the page and for Telegram's own chrome around it; follows the user's light/dark theme.
