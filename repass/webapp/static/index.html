@@ -89,7 +89,8 @@ p { margin: 0; }
 .brand .wordmark { font: 700 17px/1 var(--display); letter-spacing: -0.02em; }
 .brand .tag { margin-left: auto; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px; background: var(--green); color: var(--ink); }
 .splash { display: flex; flex-direction: column; align-items: center; padding-top: 22vh; }
-.splash .spinner { margin-top: 36px; }
+.splash .wordmark { margin-top: 18px; font: 700 26px/1 var(--display); letter-spacing: -0.02em; }
+.splash .spinner { margin-top: 32px; }
 
 /* city filter */
 .chips { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px 14px; padding: 2px 16px; scrollbar-width: none; }
@@ -305,7 +306,7 @@ body.pushed #toast, body.typing #toast { bottom: calc(var(--safe-b) + 16px); }
 </style>
 </head>
 <body class="gate">
-<main id="view"><div class="splash"><span class="logo big"></span><div class="spinner"></div></div></main>
+<main id="view"><div class="splash"><span class="logo big"></span><span class="wordmark">Repass</span><div class="spinner"></div></div></main>
 <nav id="tabs"></nav>
 <div id="toast" role="status"></div>
 
@@ -516,7 +517,7 @@ const skeletonDetail = () => h("div", { "aria-busy": "true", "aria-label": T("ap
     [0, 1, 2].map(() => h("div", null, bar("30%"), bar("35%")))));
 const logo = (big) => h("span", { class: big ? "logo big" : "logo", role: "img", "aria-label": "Repass" });
 const brand = () => h("header", { class: "brand" }, logo(), h("span", { class: "wordmark" }, "Repass"));
-const splash = () => h("div", { class: "splash" }, logo(true), spinner());
+const splash = () => h("div", { class: "splash" }, logo(true), h("span", { class: "wordmark" }, "Repass"), spinner());
 
 /* ---------------------------------------------------------------- catalog */
 function listingRow(l, onclick, extra) {
