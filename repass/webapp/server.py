@@ -153,6 +153,7 @@ def own_view(ctx: Ctx, listing: dict[str, Any]) -> dict[str, Any]:
         "can_edit": status in LS.SELLER_EDITABLE,
         "can_withdraw": status in LS.SELLER_WITHDRAWABLE,
         "can_sold": status in LS.SELLER_SELLABLE and not expired,
+        "can_delete": status in LS.SELLER_DELETABLE,
     }
 
 
@@ -192,6 +193,7 @@ class WebApp:
         r.add_post(r"/api/listings/{id:\d+}/invoice", self.invoice)
         r.add_post(r"/api/listings/{id:\d+}/withdraw", self.withdraw)
         r.add_post(r"/api/listings/{id:\d+}/sold", self.sold)
+        r.add_post(r"/api/listings/{id:\d+}/delete", self.delete)
         r.add_post(r"/api/listings/{id:\d+}/contact", self.contact)
         if self.cfg.payme_enabled:
             r.add_post("/payme", self.payme_rpc)  # Payme's own Basic auth, not initData
@@ -366,7 +368,7 @@ class WebApp:
         ctx = request[CTX]
         listing_id = int(request.match_info["id"])
         listing = await self.repo.get_listing(listing_id)
-        if listing and listing["seller_id"] == ctx.user_id:
+        if listing and listing["seller_id"] == ctx.user_id and not listing["deleted_at"]:
             return web.json_response({"listing": own_view(ctx, listing), "own": True})
         if self.repo.is_sold_shown(listing):  # still in the list as «Sold»: the seller is no longer reachable
             return web.json_response({"listing": public_view(listing, self.repo.fit_prices), "own": False})
@@ -639,8 +641,8 @@ class WebApp:
         return web.json_response({"invoice_url": url})
 
     async def _own(self, ctx: Ctx, listing_id: int) -> dict[str, Any]:
-        listing = await self.repo.get_listing(listing_id)
-        if not listing or listing["seller_id"] != ctx.user_id:  # other people's listings do not exist here
+        listing = await self.repo.seller_listing(listing_id, ctx.user_id)
+        if not listing:  # other people's listings and the deleted ones do not exist here
             raise ApiError(404, "not_found", ctx.t("common.not_available"))
         return listing
 
@@ -690,6 +692,17 @@ class WebApp:
             raise ApiError(409, "bad_status", ctx.t("my.cant_sold")) from None
         await self._notify_admins(ctx, "admin.n.sold", listing_id, **await self.repo.contact_counts(listing_id))
         return web.json_response({"listing": own_view(ctx, await self.repo.get_listing(listing_id))})
+
+    async def delete(self, request: web.Request) -> web.Response:
+        ctx = request[CTX]
+        listing_id = int(request.match_info["id"])
+        await self._own(ctx, listing_id)
+        try:
+            await self.repo.delete_by_seller(listing_id, ctx.user_id)
+        except RepoError:
+            raise ApiError(409, "bad_status", ctx.t("my.cant_delete")) from None
+        await self._notify_admins(ctx, "admin.n.deleted", listing_id)
+        return web.json_response({"deleted": listing_id})
 
 
 def create_webapp(repo: Repo, i18n: I18n, cfg: Config, bot: Bot, notifier: Notifier,

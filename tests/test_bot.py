@@ -308,6 +308,20 @@ async def test_my_listings_edit_withdraw(h):
     assert (await h.repo.get_listing(1))["status"] == LS.WITHDRAWN
     assert "Продавец снял объявление №1" in h.texts_to(ADMIN)
 
+    # deleted: the seller no longer has it, the admin still does and gives it back
+    await h.click(SELLER, "my:del:1:0")
+    await h.click(SELLER, "my:del!:1:0")
+    assert (await h.repo.get_listing(1))["deleted_at"]
+    assert "Продавец удалил объявление №1" in h.texts_to(ADMIN)
+    assert await h.repo.seller_listings(SELLER, 10, 0) == ([], 0)
+    assert len(alerts(await h.click(SELLER, "my:open:1:0"))) == 1
+    card = await h.click(ADMIN, "ad:open:1:0:")
+    assert "ad:undel:1" in str([getattr(c, "reply_markup", None) for c in card]) and "Удалено продавцом" in texts(card)
+    await h.click(ADMIN, "ad:undel:1:0:")
+    assert (await h.repo.get_listing(1))["deleted_at"] is None
+    assert "тикланди" in h.texts_to(SELLER)
+    assert (await h.repo.seller_listings(SELLER, 10, 0))[1] == 1
+
 
 async def test_support_and_language_switch(h):
     await choose_lang(h, BUYER, "ru")

@@ -275,6 +275,44 @@ async def test_withdraw_and_sold(h, api):
     assert [(x["id"], x["sold"]) for x in cat["items"]] == [(sold, True)]
 
 
+async def test_seller_deletes_and_admin_restores(h, api):
+    await h.repo.touch_user(ADMIN, "boss", "Boss")
+    lid = await publish(h, api)
+    status, data = await api.call("POST", f"/api/listings/{lid}/delete", SELLER)
+    assert (status, data["error"]) == (409, "bad_status")  # still on sale: withdraw it first
+    status, data = await api.call("POST", f"/api/listings/{lid}/withdraw", SELLER)
+    assert data["listing"]["can_delete"] is True
+    status, _ = await api.call("POST", f"/api/listings/{lid}/delete", BUYER)
+    assert status == 404  # not theirs
+    status, data = await api.call("POST", f"/api/listings/{lid}/delete", SELLER)
+    assert (status, data) == (200, {"deleted": lid})
+    assert "удалил объявление" in h.texts_to(ADMIN)
+
+    # gone for the seller: the list, the card and every action
+    _, mine = await api.call("GET", "/api/my", SELLER)
+    assert mine == {"items": [], "total": 0}
+    for method, path in (("GET", f"/api/listings/{lid}"), ("PUT", f"/api/listings/{lid}"),
+                         ("POST", f"/api/listings/{lid}/delete"), ("POST", f"/api/listings/{lid}/invoice")):
+        status, _ = await api.call(method, path, SELLER, draft() if method == "PUT" else None)
+        assert status == 404, path
+    # the row is kept, as it was, and the admin gives it back
+    kept = await h.repo.get_listing(lid)
+    assert kept["status"] == LS.WITHDRAWN and kept["deleted_at"]
+    restored = await h.repo.restore(lid, ADMIN)
+    assert restored["deleted_at"] is None
+    _, mine = await api.call("GET", "/api/my", SELLER)
+    assert [x["id"] for x in mine["items"]] == [lid]
+
+    # a sold one leaves the catalog too once its seller deletes it
+    sold = await publish(h, api)
+    await api.call("POST", f"/api/listings/{sold}/sold", SELLER)
+    await api.call("POST", f"/api/listings/{sold}/delete", SELLER)
+    _, cat = await api.call("GET", "/api/catalog", BUYER)
+    assert cat["total"] == 0
+    status, _ = await api.call("GET", f"/api/listings/{sold}", BUYER)
+    assert status == 404
+
+
 async def test_listing_fee_in_the_mini_app(tmp_path):
     h = await Harness(tmp_path / "fee.db", fee=30_000, payment_token="CLICK:TEST").start()
     links = []

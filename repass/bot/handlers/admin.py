@@ -165,6 +165,8 @@ async def render_card(ctx: Ctx, listing: dict, back: str = "") -> tuple[str, Inl
         extra.append(ctx.t("admin.card.reason", reason=esc(listing["reject_reason"])))
     if listing["status"] == LS.SOLD and listing["sale_reported_at"]:
         extra.append(ctx.t("admin.card.sold", date=fmt_dt(listing["sale_reported_at"])))
+    if listing["deleted_at"]:
+        extra.append(ctx.t("admin.card.deleted", date=fmt_dt(listing["deleted_at"])))
     counts = await ctx.repo.contact_counts(listing["id"])
     extra.append(ctx.t("admin.card.contacts", **counts) if counts["buyers"] else ctx.t("admin.card.no_contacts"))
     text += "\n\n" + "\n".join(extra)
@@ -184,6 +186,8 @@ async def render_card(ctx: Ctx, listing: dict, back: str = "") -> tuple[str, Inl
         rows.append([btn(ctx.t("admin.contacts_btn", n=counts["buyers"]), A("cont", id=lid, extra=back))])
     if st in LS.ADMIN_REMOVABLE:
         rows.append([btn(ctx.t("admin.remove"), A("rm", id=lid))])
+    if listing["deleted_at"]:
+        rows.append([btn(ctx.t("admin.restore"), A("undel", id=lid))])
     rows.append([btn(ctx.t("admin.back"), A("lst", extra=back or st)), btn(ctx.t("admin.btn.home"), A("home"))])
     return text, kb(*rows)
 
@@ -324,6 +328,11 @@ async def _listing_action(call: CallbackQuery, ctx: Ctx, state: FSMContext, noti
         await call.answer(ctx.t("admin.removed_ok", id=lid))
         await _show(call, *await render_card(ctx, listing))
         await notifier.user(ctx, listing["seller_id"], lambda u: (u.t("notify.removed", id=lid), None))
+    elif a == "undel":
+        listing = await repo.restore(lid, ctx.user_id)
+        await call.answer(ctx.t("admin.restored_ok", id=lid))
+        await _show(call, *await render_card(ctx, listing))
+        await notifier.user(ctx, listing["seller_id"], lambda u: (u.t("notify.restored", id=lid), None))
     else:
         await call.answer(ctx.t("common.stale"), show_alert=True)
 

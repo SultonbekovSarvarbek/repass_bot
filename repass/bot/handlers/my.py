@@ -56,6 +56,8 @@ async def card(ctx: Ctx, listing: dict, page: int) -> tuple[str, InlineKeyboardM
         rows.append([btn(ctx.t("my.sold_btn"), MyCb(action="sold", id=lid, page=page))])
     if st in LS.SELLER_WITHDRAWABLE:
         rows.append([btn(ctx.t("my.withdraw_btn"), MyCb(action="wd", id=lid, page=page))])
+    if st in LS.SELLER_DELETABLE:
+        rows.append([btn(ctx.t("my.delete_btn"), MyCb(action="del", id=lid, page=page))])
     rows.append([operator_btn(ctx)])
     rows.append([btn(ctx.t("common.back"), MyCb(action="list", page=page))])
     return "\n\n".join(parts), kb(*rows)
@@ -70,8 +72,8 @@ async def _edit(call: CallbackQuery, text: str, markup) -> None:
 
 
 async def _own(call: CallbackQuery, ctx: Ctx, listing_id: int) -> dict | None:
-    listing = await ctx.repo.get_listing(listing_id)
-    if not listing or listing["seller_id"] != ctx.user_id:  # never show other people's listings
+    listing = await ctx.repo.seller_listing(listing_id, ctx.user_id)
+    if not listing:  # never show other people's listings, nor the ones the seller deleted
         await call.answer(ctx.t("common.stale"), show_alert=True)
         return None
     return listing
@@ -133,6 +135,28 @@ async def on_my(call: CallbackQuery, callback_data: MyCb, state: FSMContext, ctx
                 adm.t("admin.n.withdrawn", id=lid),
                 kb([btn(adm.t("admin.open_btn", id=lid), AdmCb(action="open", id=lid))]),
             ))
+
+    elif a == "del":
+        await call.answer()
+        await _edit(call, ctx.t("my.delete_confirm", id=lid), kb(
+            [btn(ctx.t("my.delete_yes"), MyCb(action="del!", id=lid, page=page))],
+            [btn(ctx.t("common.back"), MyCb(action="open", id=lid, page=page))],
+        ))
+
+    elif a == "del!":
+        try:
+            await ctx.repo.delete_by_seller(lid, ctx.user_id)
+        except RepoError:
+            await call.answer(ctx.t("my.cant_delete"), show_alert=True)
+            return
+        await call.answer()
+        await _edit(call, ctx.t("my.deleted", id=lid), kb(
+            [btn(ctx.t("common.back"), MyCb(action="list", page=page))]
+        ))
+        await notifier.admins(ctx, lambda adm: (
+            adm.t("admin.n.deleted", id=lid),
+            kb([btn(adm.t("admin.open_btn", id=lid), AdmCb(action="open", id=lid))]),
+        ))
 
     elif a == "sold":
         await call.answer()

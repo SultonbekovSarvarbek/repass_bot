@@ -42,6 +42,7 @@ class LS:  # listing statuses
     ALL = (UNPAID, PENDING, APPROVED, REJECTED, WITHDRAWN, REMOVED, RESERVED, SOLD)
     SELLER_EDITABLE = (UNPAID, PENDING, APPROVED, REJECTED, WITHDRAWN, REMOVED)
     SELLER_WITHDRAWABLE = (UNPAID, PENDING, APPROVED, REJECTED)
+    SELLER_DELETABLE = (REJECTED, WITHDRAWN, REMOVED, SOLD)  # no longer on sale: the seller may hide it for good
     SELLER_SELLABLE = (APPROVED,)  # «Sold»: the seller takes it out of the catalog for good
     ADMIN_REMOVABLE = (PENDING, APPROVED, REJECTED)
 
@@ -122,7 +123,8 @@ CREATE TABLE IF NOT EXISTS listings (
     published_at              TEXT,
     fee_amount                INTEGER,            -- the listing fee to pay, сум; NULL or 0: placed for free
     fee_paid_at               TEXT,               -- when the seller paid it
-    fee_charge_id             TEXT                -- Telegram's payment charge id: one payment, one listing
+    fee_charge_id             TEXT,               -- Telegram's payment charge id: one payment, one listing
+    deleted_at                TEXT                -- the seller deleted it: hidden from them and the buyers, kept for the admins
 );
 CREATE INDEX IF NOT EXISTS ix_listings_catalog ON listings(status, end_date, city, published_at);
 CREATE INDEX IF NOT EXISTS ix_listings_seller ON listings(seller_id);
@@ -312,6 +314,8 @@ class Repo:
         for column in ("fee_paid_at", "fee_charge_id"):
             if column not in columns:
                 await self.db.execute(f"ALTER TABLE listings ADD COLUMN {column} TEXT")
+        if "deleted_at" not in columns:
+            await self.db.execute("ALTER TABLE listings ADD COLUMN deleted_at TEXT")
         # Installment memberships cost monthly × payments left. Listings made before that rule get it once,
         # so the price, the catalog order and the nightly countdown agree (sold ones keep their history).
         if not await self._scalar("SELECT 1 FROM settings WHERE key='installment_price_v1'"):
@@ -546,8 +550,8 @@ class Repo:
     async def update_listing_by_seller(self, listing_id: int, seller_id: int, lang: str, draft: dict[str, Any]) -> None:
         self._check_draft(draft)
         async with self.tx():
-            listing = await self.get_listing(listing_id)
-            if not listing or listing["seller_id"] != seller_id:
+            listing = await self.seller_listing(listing_id, seller_id)
+            if not listing:
                 raise RepoError("not_found")
             if listing["status"] not in LS.SELLER_EDITABLE:
                 raise RepoError("bad_status")
@@ -572,16 +576,45 @@ class Repo:
             await self._log(listing_id, seller_id, "edited", price=draft["price"])
 
     async def seller_listings(self, seller_id: int, limit: int, offset: int) -> tuple[list[dict[str, Any]], int]:
-        total = await self._scalar("SELECT COUNT(*) FROM listings WHERE seller_id=?", (seller_id,))
+        total = await self._scalar("SELECT COUNT(*) FROM listings WHERE seller_id=? AND deleted_at IS NULL", (seller_id,))
         rows = await self._all(
-            "SELECT * FROM listings WHERE seller_id=? ORDER BY id DESC LIMIT ? OFFSET ?", (seller_id, limit, offset)
+            "SELECT * FROM listings WHERE seller_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT ? OFFSET ?",
+            (seller_id, limit, offset)
         )
         return rows, total
 
-    async def withdraw_by_seller(self, listing_id: int, seller_id: int) -> None:
+    async def seller_listing(self, listing_id: int, seller_id: int) -> dict[str, Any] | None:
+        """The seller's own listing; None for somebody else's and for one they deleted."""
+        listing = await self.get_listing(listing_id)
+        return listing if listing and listing["seller_id"] == seller_id and not listing["deleted_at"] else None
+
+    async def delete_by_seller(self, listing_id: int, seller_id: int) -> None:
+        """«Delete»: the seller no longer sees it and neither do the buyers. The row stays: an admin can restore it."""
+        async with self.tx():
+            listing = await self.seller_listing(listing_id, seller_id)
+            if not listing:
+                raise RepoError("not_found")
+            if listing["status"] not in LS.SELLER_DELETABLE:
+                raise RepoError("bad_status")
+            await self.db.execute("UPDATE listings SET deleted_at=?, updated_at=? WHERE id=?", (now_iso(), now_iso(), listing_id))
+            await self._log(listing_id, seller_id, "deleted")
+
+    async def restore(self, listing_id: int, admin_id: int) -> dict[str, Any]:
+        """An admin gives a deleted listing back to its seller, in the status it had."""
         async with self.tx():
             listing = await self.get_listing(listing_id)
-            if not listing or listing["seller_id"] != seller_id:
+            if not listing:
+                raise RepoError("not_found")
+            if not listing["deleted_at"]:
+                raise RepoError("already")
+            await self.db.execute("UPDATE listings SET deleted_at=NULL, updated_at=? WHERE id=?", (now_iso(), listing_id))
+            await self._log(listing_id, admin_id, "restored")
+            return await self.get_listing(listing_id)
+
+    async def withdraw_by_seller(self, listing_id: int, seller_id: int) -> None:
+        async with self.tx():
+            listing = await self.seller_listing(listing_id, seller_id)
+            if not listing:
                 raise RepoError("not_found")
             if listing["status"] not in LS.SELLER_WITHDRAWABLE:
                 raise RepoError("bad_status")
@@ -593,8 +626,8 @@ class Repo:
     async def mark_sold(self, listing_id: int, seller_id: int) -> None:
         """The seller sold it to a buyer who called: it leaves the catalog for good."""
         async with self.tx():
-            listing = await self.get_listing(listing_id)
-            if not listing or listing["seller_id"] != seller_id:
+            listing = await self.seller_listing(listing_id, seller_id)
+            if not listing:
                 raise RepoError("not_found")
             if listing["status"] not in LS.SELLER_SELLABLE:
                 raise RepoError("bad_status")
@@ -613,8 +646,8 @@ class Repo:
 
     async def fee_problem(self, listing_id: int, user_id: int, amount: int | None = None) -> str | None:
         """Why this listing cannot be paid for now (None: it can). Checked before Telegram takes the money."""
-        listing = await self.get_listing(listing_id)
-        if not listing or listing["seller_id"] != user_id:
+        listing = await self.seller_listing(listing_id, user_id)
+        if not listing:
             return "not_found"
         if listing["status"] != LS.UNPAID or not self.fee_due(listing):
             return "already"
@@ -770,14 +803,15 @@ class Repo:
 
     def is_sold_shown(self, listing: dict[str, Any] | None) -> bool:
         """Sold lately: buyers still see it in the catalog with the «Sold» badge (Repass works), but cannot reach the seller."""
-        return (bool(listing) and listing["status"] == LS.SOLD and (listing["sale_reported_at"] or "") >= self._sold_since()
+        return (bool(listing) and listing["status"] == LS.SOLD and not listing["deleted_at"]
+                and (listing["sale_reported_at"] or "") >= self._sold_since()
                 and (self.promo_enabled or listing["kind"] != LK.PROMO))
 
     async def catalog(self, city: str | None, limit: int, offset: int,
                       today: date | None = None, club: str | None = None) -> tuple[list[dict[str, Any]], int]:
         params: dict[str, Any] = {"st": LS.APPROVED, "today": (today or today_local()).isoformat(),
                                   "sold": LS.SOLD, "since": self._sold_since()}
-        where = ("((status=:st AND end_date>=:today) OR (status=:sold AND sale_reported_at>=:since))"
+        where = ("((status=:st AND end_date>=:today) OR (status=:sold AND sale_reported_at>=:since AND deleted_at IS NULL))"
                  + self._kind_filter())
         if city:
             where += " AND city=:city"

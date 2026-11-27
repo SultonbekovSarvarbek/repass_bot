@@ -1119,6 +1119,12 @@ function mineView(view) {
       const data = await api("POST", "listings/" + l.id + "/" + path);
       haptic("success"); update(data); toast(T(doneKey));
     }); } }, T(key));
+  // «Delete»: it leaves «My» for good (the admins keep it and can give it back).
+  const del = h("button", { class: "btn danger", type: "button", onclick: (e) => busy(e.currentTarget, async () => {
+    if (!(await ask(T("app.my.delete_q", { id: l.id })))) return;
+    await api("POST", "listings/" + l.id + "/delete");
+    haptic("success"); S.my = null; S.cat.loaded = false; S.tab = "my"; S.stack = []; render(); toast(T("app.my.deleted"));
+  }) }, T("app.my.delete"));
   const pay = B.vars.pay_manual ? h("button", { class: "btn", type: "button", onclick: openOperator }, "✍️ " + T("app.payv.manual_btn"))
     : h("button", { class: "btn", type: "button", onclick: (e) => busy(e.currentTarget, async () => {
     const res = await api("POST", "listings/" + l.id + "/invoice");
@@ -1152,6 +1158,7 @@ function mineView(view) {
         l.can_edit ? h("button", { class: "btn", type: "button", onclick: () => go({ name: "edit", listing: l }) }, T("app.my.edit")) : null,
         l.can_sold ? act("app.my.sold", "app.my.sold_q", "sold", "app.my.sold_done") : null,
         l.can_withdraw ? act("app.my.withdraw", "app.my.withdraw_q", "withdraw", "app.my.withdrawn") : null,
+        l.can_delete ? del : null,
         operatorBtn())),
   ];
 }
