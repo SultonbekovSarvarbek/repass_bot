@@ -283,6 +283,17 @@ def freeze_from_words(words: list[dict[str, Any]]) -> int | None:
     return best[1] if best else None
 
 
+MAX_WIDTH = 2000  # a camera photo of a screen is 3000–4000 px wide: reading it takes many times longer, not better
+
+
+@lru_cache(maxsize=1)
+def _langs() -> str:
+    """The installed languages out of the wanted ones, asked from Tesseract once (it starts a process)."""
+    import pytesseract
+    have = set(pytesseract.get_languages(config=""))
+    return "+".join([lang for lang in WANTED_LANGS if lang in have] or ["eng"])
+
+
 def _prepare(image: bytes):
     from PIL import Image, ImageOps
     img = Image.open(io.BytesIO(image))
@@ -293,6 +304,9 @@ def _prepare(image: bytes):
     if img.width < 1400:  # small phone screenshots read better enlarged
         k = 1400 / img.width
         img = img.resize((round(img.width * k), round(img.height * k)))
+    elif img.width > MAX_WIDTH:
+        k = MAX_WIDTH / img.width
+        img = img.resize((MAX_WIDTH, round(img.height * k)))
     return img
 
 
@@ -305,8 +319,7 @@ def read_words(image: bytes) -> tuple[str, list[dict[str, Any]]] | None:
         return None
     try:
         img = _prepare(image)
-        langs = [lang for lang in WANTED_LANGS if lang in set(pytesseract.get_languages(config=""))] or ["eng"]
-        data = pytesseract.image_to_data(img, lang="+".join(langs), output_type=pytesseract.Output.DICT)
+        data = pytesseract.image_to_data(img, lang=_langs(), output_type=pytesseract.Output.DICT)
     except Exception as e:  # noqa: BLE001 — a bad picture must not break selling
         log.warning("screenshot not read: %s", e)
         return None

@@ -572,19 +572,27 @@ class WebApp:
                 raise bad
         if not buf:
             raise bad
+        image = bytes(buf)
+        # Read the 1Fit card (end date, freeze and bonus days): the form fills itself, the admin compares.
+        # The reading starts at once and runs while the picture goes to Telegram: the seller waits for the
+        # slower of the two, not for both.
+        reading = asyncio.create_task(asyncio.to_thread(ocr.read_card, image, today_local())) if self.ocr_on else None
         try:
             sent = await self.bot.send_photo(
-                ctx.user_id, BufferedInputFile(bytes(buf), filename="screenshot.jpg"),
+                ctx.user_id, BufferedInputFile(image, filename="screenshot.jpg"),
                 caption=ctx.t("app.screenshot_caption"),
             )
         except TelegramAPIError as e:
             log.warning("screenshot upload for %s failed: %s", ctx.user_id, e)
+            if reading:
+                reading.add_done_callback(lambda t: t.exception())  # nobody waits for it: keep the log quiet
             raise bad from None
         if not sent.photo:
+            if reading:
+                reading.add_done_callback(lambda t: t.exception())
             raise bad
         file_id = sent.photo[-1].file_id
-        # Read the 1Fit card (end date, tariff, freeze days): the form fills itself, the admin compares.
-        read = await asyncio.to_thread(ocr.read_card, bytes(buf), today_local()) if self.ocr_on else {}
+        read = await reading if reading else {}
         await self.repo.save_screenshot_read(file_id, ctx.user_id, read)
         return web.json_response({"file_id": file_id, "sig": self._sign(ctx.user_id, file_id), "read": read})
 

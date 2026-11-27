@@ -878,8 +878,28 @@ function sellForm(d, onDone, onKind) {
 
 
   // Screenshots of the 1Fit membership card (up to 3): uploaded right away, the form keeps signed references.
-  // Only the admin sees them. What Tesseract reads off them (tariff, end date, freeze days) fills the empty fields.
+  // Only the admin sees them. What Tesseract reads off them (end date, freeze and bonus days) fills the empty fields.
   const MAX_SHOTS = 3;
+  const pendingReads = [];  // read before the club was picked: applied once it is 1Fit
+  // A phone screenshot is a 2–5 MB PNG and goes up twice (to us, then to Telegram): sent as a JPEG no wider
+  // than 1600 px it is several times lighter and reads the same. Anything that goes wrong: the file as it is.
+  const shrink = (one) => new Promise((resolve) => {
+    const url = URL.createObjectURL(one), img = new Image();
+    const done = (out) => { URL.revokeObjectURL(url); resolve(out || one); };
+    img.onerror = () => done();
+    img.onload = () => {
+      try {
+        const k = Math.min(1, 1600 / img.naturalWidth, 4800 / img.naturalHeight);
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        const g = c.getContext("2d");
+        g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);  // a transparent PNG must not turn black
+        g.drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob((blob) => done(blob && blob.size < one.size ? blob : null), "image/jpeg", 0.9);
+      } catch (e) { done(); }
+    };
+    img.src = url;
+  });
   const file = h("input", { type: "file", accept: "image/*", multiple: true, hidden: true });
   const shotRow = h("div", { class: "row" });
   const shotCount = () => d.shots.reduce((n, s) => n + (s === "keep" ? d.keptShots : 1), 0);
@@ -891,11 +911,11 @@ function sellForm(d, onDone, onKind) {
         h("div", { class: "small muted" }, loading ? T("app.sell.shot_loading")
           : T((B.vars.shot_required ? "app.sell.shots_hint_required" : "app.sell.shots_hint") + (B.vars.ocr ? "" : "_plain")))),
       loading ? "" : h("div", { class: "shot-btns" },
-        n ? h("button", { class: "btn small danger", type: "button", onclick: () => { d.shots = []; drawShot(); } }, T("app.sell.shot_remove")) : null,
+        n ? h("button", { class: "btn small danger", type: "button", onclick: () => { d.shots = []; pendingReads.length = 0; drawShot(); } }, T("app.sell.shot_remove")) : null,
         n < MAX_SHOTS ? h("button", { class: "btn small", type: "button", onclick: () => file.click() }, T("app.sell.shot_add")) : null));
   };
   const applyRead = (read) => {
-    if (!fit()) return;  // the reader knows 1Fit's card only
+    if (!fit()) { pendingReads.push(read); return; }  // the reader knows 1Fit's card only: kept until 1Fit is picked
     const filled = [];
     // The card's date wins over an empty or earlier-read one, never over a date the seller corrected by hand.
     if (read.end_date && d.kind === "membership" && (!d.end_date || d.dateFromShot)) {
@@ -922,7 +942,7 @@ function sellForm(d, onDone, onKind) {
         wait.set(T("app.sell.shot_wait", { n: i + 1, total: picked.length }), sub);
         try {
           const body = new FormData();
-          body.append("file", one);
+          body.append("file", await shrink(one), "screenshot.jpg");
           const res = await api("POST", "screenshot", body);
           d.shots.push({ file_id: res.file_id, sig: res.sig });
           if (res.read) applyRead(res.read);
@@ -969,6 +989,7 @@ function sellForm(d, onDone, onKind) {
     fields.tariff.hidden = !promo;  // only a promo code says what it gives
     label(fields.end_date).textContent = T(promo ? "app.f.date_promo" : "app.f.date");
     drawPriceHint(); loadAdvice();
+    if (fit() && pendingReads.length) pendingReads.splice(0).forEach((read) => applyRead(read));
     if (onKind) onKind(d.kind);
   };
   // What the seller confirms: what is given away, for how much, and how buyers reach them.
