@@ -1047,7 +1047,7 @@ function afterSubmit(id, paid) {
         : paid === "pending" ? T("app.pay.external") : T("app.sell.unpaid_text"));
 }
 // «Оплатите размещение»: right after «Send to moderation» for an unpaid listing. The listing is saved;
-// it reaches the moderators once the fee is paid. «Later» leaves it in «My», where it can be paid any time.
+// it reaches the moderators once the fee is paid. Left unpaid, it stays in «My», where it can be paid any time.
 function payView(view) {
   const toMy = (text) => { S.my = null; S.stack = []; S.tab = "my"; render(); if (text) toast(text); };
   const manual = B.vars.pay_manual;  // until Payme works: the seller pays the operator, an admin confirms
@@ -1071,8 +1071,7 @@ function payView(view) {
           h("span", { class: "v num" }, money(view.fee) + " " + T("app.sum")))),
       pay,
       manual ? h("p", { class: "note", style: "margin:0 4px" }, T("app.payv.manual_note"))
-        : h("div", { class: "paywith" }, h("span", { class: "payme", role: "img", "aria-label": "Payme" }), h("p", { class: "note" }, T("app.payv.note"))),
-      h("button", { class: "btn ghost", type: "button", onclick: () => toMy(T("app.sell.unpaid_text")) }, T("app.payv.later"))),
+        : h("div", { class: "paywith" }, h("span", { class: "payme", role: "img", "aria-label": "Payme" }), h("p", { class: "note" }, T("app.payv.note")))),
   ];
 }
 function sellView() {
