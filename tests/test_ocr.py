@@ -66,10 +66,9 @@ def test_installment_screenshots_next_to_the_card():
     card = parse_card("for 365 days\n146 days left until April 18, 2027", TODAY)
     read = merge([parse_card("Контракт\nПОКУПКА В 1Fit 6 400 000 сум", TODAY), card])
     assert read["end_date"] == "2027-04-18" and read["installment"]
-    assert mismatches(read, {"end_date": "2027-04-18", "paid_in_full": 1}) == ["installment"]
-    assert mismatches(read, {"end_date": "2027-04-18", "paid_in_full": 0}) == []
-    assert mismatches({"installment": True, "payments_left": 3},
-                      {"paid_in_full": 0, "payments_left": 9}) == ["payments_left"]
+    # an installment is the seller's own business: the contract next to the card is not a disagreement
+    assert mismatches(read, {"end_date": "2027-04-18"}) == []
+    assert mismatches({"installment": True, "payments_left": 3}, {"end_date": "2027-04-18"}) == []
 
 
 def test_contract_dated_after_the_membership_began_is_flagged():
@@ -78,9 +77,9 @@ def test_contract_dated_after_the_membership_began_is_flagged():
     card = parse_card("Personal membership\nfor 365 days\n146 days left until April 18, 2027", TODAY)
     contract = parse_card("Контракт\nПОКУПКА В 1Fit\n6 400 000 сум\nЗаявка №690984 от 12.08.2026", TODAY)
     read = merge([card, contract])
-    assert mismatches(read, {"end_date": "2027-04-18", "tariff_days": 365, "paid_in_full": 0}) == ["contract_date"]
+    assert mismatches(read, {"end_date": "2027-04-18", "tariff_days": 365}) == ["contract_date"]
     bought_with_it = {**read, "contract_date": "2026-04-10"}
-    assert mismatches(bought_with_it, {"end_date": "2027-04-18", "tariff_days": 365, "paid_in_full": 0}) == []
+    assert mismatches(bought_with_it, {"end_date": "2027-04-18", "tariff_days": 365}) == []
 
 
 # ------------------------------------------------------------------ the bot and the Mini App with a fake Tesseract
@@ -124,7 +123,6 @@ async def test_bot_offers_the_values_read_off_the_screenshots(h, monkeypatch):
     await h.click(SELLER, "sl:city:tashkent")
     await h.click(SELLER, "sl:plan:365")
     await h.send(SELLER, end.strftime("%d.%m.%Y"))
-    await h.click(SELLER, "sl:pay:full")
     await h.click(SELLER, "sl:freeze:no")
     await h.click(SELLER, "sl:bonus:0")
     await h.send(SELLER, "2 000 000")

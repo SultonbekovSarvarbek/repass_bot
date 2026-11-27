@@ -67,18 +67,10 @@ def test_one_day_more_never_costs_less():
     assert advise(end_in(180), TODAY).fit_value == 5_890_000 and advise(end_in(365), TODAY).fit_value == 7_890_000
 
 
-def test_installments_the_buyer_takes_over_come_off_the_price():
-    full = advise(end_in(200), TODAY)
-    inst = advise(end_in(200), TODAY, monthly_payment=300_000, payments_left=3)
-    assert inst.installments == 900_000
-    assert inst.recommended == full.recommended - 900_000
-    assert inst.month_cost(inst.recommended) == full.month_cost(full.recommended)  # same total for the buyer
-
-
-def test_installments_as_dear_as_1fit_leave_no_limit():
-    a = advise(end_in(200), TODAY, monthly_payment=500_000, payments_left=11)  # 5.5M left to pay vs ~6.1M value
-    assert a.max_price == 0 and not a.too_high(3_000_000)  # no cap that would leave nothing to ask
-    assert a.recommended == 10_000
+def test_the_cap_is_above_the_advice():
+    a = advise(end_in(200), TODAY)
+    assert a.max_price > a.recommended > a.min_price
+    assert a.too_high(a.max_price + 10_000) and not a.too_high(a.recommended)
 
 
 def test_ended_membership_gets_no_advice():
@@ -99,7 +91,6 @@ async def walk_to_price(h, days=200):
     await h.click(SELLER, "sl:club:1fit")
     await h.click(SELLER, "sl:city:tashkent")
     await h.send(SELLER, (today_local() + timedelta(days=days)).strftime("%d.%m.%Y"))
-    await h.click(SELLER, "sl:pay:full")
     await h.click(SELLER, "sl:freeze:no")
     return await h.click(SELLER, "sl:bonus:0")
 
@@ -143,12 +134,14 @@ def _key(h):
 # ------------------------------------------------------------------ the Mini App
 async def test_api_advice_and_limit(h, api):  # noqa: F811
     end = (today_local() + timedelta(days=200)).isoformat()
-    status, data = await api.call("POST", "/api/advice", SELLER, {"end_date": end, "paid_in_full": True})
+    status, data = await api.call("POST", "/api/advice", SELLER, {"end_date": end})
     a = advise(end, today_local())
     assert status == 200 and data["advice"]["recommended"] == a.recommended and data["advice"]["max"] == a.max_price
-    _, half = await api.call("POST", "/api/advice", SELLER, {"end_date": end, "paid_in_full": False})
-    assert half["advice"] is None  # installments not typed yet
-    _, none = await api.call("POST", "/api/advice", SELLER, {"end_date": "", "paid_in_full": True})
+    # an old app version still says «installment»: it changes nothing
+    _, old = await api.call("POST", "/api/advice", SELLER,
+                            {"end_date": end, "paid_in_full": False, "monthly_payment": 500_000, "payments_left": 9})
+    assert old["advice"] == data["advice"] and "installments" not in data["advice"]
+    _, none = await api.call("POST", "/api/advice", SELLER, {"end_date": ""})
     assert none["advice"] is None
 
     # the seller's own price goes as it is, even dearer than 1Fit
@@ -365,10 +358,9 @@ async def test_auto_price_in_the_bot(tmp_path):
         await h.click(SELLER, "sl:club:1fit")
         await h.click(SELLER, "sl:city:tashkent")
         await h.send(SELLER, end.strftime("%d.%m.%Y"))
-        await h.click(SELLER, "sl:pay:full")
         await h.click(SELLER, "sl:freeze:no")
         nxt = texts(await h.click(SELLER, "sl:bonus:0"))
-        assert "Шаг 6/8" in nxt and "описание" in nxt  # no price question: straight to the description
+        assert "Шаг 5/7" in nxt and "описание" in nxt  # no price question: straight to the description
         await h.click(SELLER, "sl:skip:")
         await h.click(SELLER, "sl:skip:")
         await h.send(SELLER, "Алишер")
@@ -432,31 +424,7 @@ async def test_bot_does_not_ask_the_start_date(h):
     await h.click(SELLER, "sl:club:1fit")
     await h.click(SELLER, "sl:city:tashkent")
     nxt = texts(await h.send(SELLER, (today_local() + timedelta(days=200)).strftime("%d.%m.%Y")))
-    assert "Как оплачен абонемент" in nxt and "Дата начала" not in nxt
-
-
-def test_payments_left_are_guessed_from_the_end_date():
-    from repass.usage import payments_guess
-    assert payments_guess(end_in(200), TODAY) == 7   # 200 days: about 7 monthly payments
-    assert payments_guess(end_in(10), TODAY) == 1    # never 0
-    assert payments_guess(end_in(5000), TODAY) == 60  # never above the limit
-
-
-async def test_bot_offers_the_number_of_payments(h):
-    await h.send(SELLER, "/start")
-    await h.click(SELLER, "lang:ru")
-    await h.send(SELLER, "➕ Продать абонемент")
-    await h.click(SELLER, "sl:kind:membership")
-    await h.click(SELLER, "sl:club:1fit")
-    await h.click(SELLER, "sl:city:tashkent")
-    await h.send(SELLER, (today_local() + timedelta(days=200)).strftime("%d.%m.%Y"))
-    await h.click(SELLER, "sl:pay:installment")
-    ask = texts(await h.send(SELLER, "500 000"))
-    assert "По дате окончания — <b>7</b>" in ask and h.button(SELLER, "Да, 7") == "sl:leftok:7"
-    nxt = texts(await h.click(SELLER, "sl:leftok:7"))
-    assert "заморозки" in nxt  # one tap, straight to the next question
-    data = await h.dp.storage.get_data(key=_key(h))
-    assert data["draft"]["payments_left"] == 7
+    assert "заморозки" in nxt and "Дата начала" not in nxt and "оплачен" not in nxt
 
 
 # ------------------------------------------------------------------ the price follows the days left
@@ -491,17 +459,6 @@ async def test_reprice_leaves_typed_prices_and_sold_alone(h):
     before = {i: (await h.repo.get_listing(i))["price"] for i in (typed, sold)}
     await h.repo.reprice(today_local() + timedelta(days=60))
     assert {i: (await h.repo.get_listing(i))["price"] for i in (typed, sold)} == before
-
-
-async def test_reprice_counts_down_the_installments(h):
-    await h.repo.touch_user(SELLER, "s", "S")
-    lid, _ = await _auto_listing(h.repo, paid_in_full=False, monthly_payment=500_000, payments_left=3)
-    assert (await h.repo.get_listing(lid))["payments_as_of"] == today_local().isoformat()
-    await h.repo.reprice(today_local() + timedelta(days=31))  # the seller paid one more month
-    assert (await h.repo.get_listing(lid))["payments_left"] == 2
-    await h.repo.reprice(today_local() + timedelta(days=100))  # all paid off
-    listing = await h.repo.get_listing(lid)
-    assert (listing["paid_in_full"], listing["payments_left"], listing["monthly_payment"]) == (1, None, None)
 
 
 async def test_listings_get_the_automatic_flag(tmp_path):
@@ -548,26 +505,10 @@ async def test_buyers_are_told_to_pay_after_the_transfer(h, api):  # noqa: F811
 
 def test_seller_tariff_does_not_lower_the_base():
     # listing #20: 147 days left of a 12-month membership. The buyer would buy 1Fit's 6 months (5 890 000),
-    # not a year: priced from the year it got 3 178 000 of value and, after the installments, 10 000.
+    # not a year: priced from the year it got 3 178 000 of value.
     a = advise(end_in(147), TODAY, plan_days=365)
     assert a.base_days == 180 and a.fit_value == round(147 / 180 * 5_890_000)
-    with_installments = advise(end_in(147), TODAY, None, 532_500, 5, plan_days=365)
-    assert with_installments.recommended == 1_180_000
-
-
-async def test_installment_price_follows_the_payments_left(h):
-    """An installment listing costs monthly × payments left: one payment fewer a month, the price follows."""
-    await h.repo.touch_user(SELLER, "s", "S")
-    lid, _ = await _auto_listing(h.repo, paid_in_full=False, monthly_payment=500_000, payments_left=3,
-                                 price=1_500_000, price_auto=False)
-    await h.repo.reprice(today_local() + timedelta(days=31))
-    listing = await h.repo.get_listing(lid)
-    assert (listing["payments_left"], listing["price"]) == (2, 1_000_000)
-    # a price the seller typed (not monthly × left) is left alone
-    typed, _ = await _auto_listing(h.repo, paid_in_full=False, monthly_payment=500_000, payments_left=3,
-                                   price=700_000, price_auto=False)
-    await h.repo.reprice(today_local() + timedelta(days=31))
-    assert (await h.repo.get_listing(typed))["price"] == 700_000
+    assert a.recommended == 3_840_000
 
 
 # ------------------------------------------------------------------ fresh prices for every listing
@@ -678,7 +619,6 @@ async def test_bonus_days_in_the_bot(h):
     await h.click(SELLER, "sl:club:1fit")
     await h.click(SELLER, "sl:city:tashkent")
     await h.send(SELLER, card.strftime("%d.%m.%Y"))
-    await h.click(SELLER, "sl:pay:full")
     assert "Бонусные дни" in texts(await h.click(SELLER, "sl:freeze:no"))
     assert "от 0 до 365" in texts(await h.send(SELLER, "много"))
     await h.send(SELLER, "30")

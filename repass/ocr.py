@@ -222,11 +222,8 @@ def merge(results: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def mismatches(read: dict[str, Any], listing: dict[str, Any]) -> list[str]:
-    """Fields where the screenshot and the listing disagree: «end_date», «tariff_days», «freeze_days», «bonus_days»,
-    and «installment» when the seller says «paid in full» next to an installment contract."""
+    """Fields where the screenshot and the listing disagree: «end_date», «tariff_days», «freeze_days», «bonus_days»."""
     out = []
-    if read.get("installment") and listing.get("paid_in_full"):
-        out.append("installment")
     for key in ("end_date", "tariff_days", "freeze_days", "bonus_days"):
         if read.get(key) is None or listing.get(key) is None:
             continue
@@ -237,9 +234,6 @@ def mismatches(read: dict[str, Any], listing: dict[str, Any]) -> list[str]:
             out.append(key)
     if contract_after_start(read):
         out.append("contract_date")
-    if not listing.get("paid_in_full") and read.get("payments_left") and listing.get("payments_left") \
-            and read["payments_left"] != listing["payments_left"]:
-        out.append("payments_left")
     return out
 
 

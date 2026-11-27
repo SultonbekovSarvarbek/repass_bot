@@ -33,7 +33,6 @@ async def create_listing(h, uid=SELLER, price="2 000 000"):
     await h.click(uid, "sl:city:tashkent")
     await h.send(uid, END)
     await h.send(uid, START)
-    await h.click(uid, "sl:pay:full")
     await h.click(uid, "sl:freeze:no")
     await h.click(uid, "sl:bonus:0")
     calc = await h.send(uid, price)
@@ -247,11 +246,10 @@ async def test_wizard_navigation_and_validation(h):
     await h.click(SELLER, "sl:kind:membership")
     await h.click(SELLER, "sl:club:1fit")
     await h.click(SELLER, "sl:city:samarkand")
-    assert "Шаг 2/9" in texts(await h.click(SELLER, "sl:back:"))  # back to city
+    assert "Шаг 2/8" in texts(await h.click(SELLER, "sl:back:"))  # back to city
     await h.click(SELLER, "sl:city:samarkand")
     assert "прошла" in texts(await h.send(SELLER, "01.01.2020"))
-    assert "Как оплачен абонемент" in texts(await h.send(SELLER, END))  # no start date question any more
-    await h.click(SELLER, "sl:pay:full")
+    assert "Шаг 4/8" in texts(await h.send(SELLER, END))  # no start date or payment question: the freeze days
     await h.click(SELLER, "sl:freeze:no")
     await h.click(SELLER, "sl:bonus:0")
     assert "цифрами" in texts(await h.send(SELLER, "дорого"))
@@ -333,7 +331,7 @@ async def test_restart_keeps_language_data_and_wizard(tmp_path):
 
     h2 = await Harness(db).start()  # "restart"
     nxt = await h2.send(SELLER, END)  # wizard continues at the payment step, in Uzbek
-    assert "4/9-қадам" in texts(nxt)
+    assert "4/8-қадам" in texts(nxt)
     welcome = await h2.send(SELLER, "/start")
     assert "Тилни танланг" not in texts(welcome) and "Эълон жойлаш — бепул" in texts(welcome)
     await h2.stop()
@@ -345,41 +343,29 @@ async def test_bot_ignores_group_chats(h):
     assert await h._feed(upd) == []
 
 
-async def test_installment_wizard_and_card(h):
+async def test_installments_are_not_asked(h):
+    """No «fully paid or installment» question: an installment is the seller's own debt to the bank."""
     await choose_lang(h, SELLER, "ru")
     await h.send(SELLER, "➕ Продать абонемент")
     await h.click(SELLER, "sl:kind:membership")
     await h.click(SELLER, "sl:club:1fit")
     await h.click(SELLER, "sl:city:tashkent")
-    assert "Шаг 4/9" in texts(await h.send(SELLER, END))
-    assert "Выберите действие" in texts(await h.send(SELLER, "500000"))  # a button is expected here
-    assert "в месяц" in texts(await h.click(SELLER, "sl:pay:installment"))
-    assert "цифрами" in texts(await h.send(SELLER, "много"))
-    assert "платежей" in texts(await h.send(SELLER, "500 000"))
-    assert "от 1 до 60" in texts(await h.send(SELLER, "100"))
-    # no price question with installments: the price is monthly × payments left, said right away
-    after_left = texts(await h.send(SELLER, "9"))
-    assert "Цена: <b>4\xa0500\xa0000 сум</b> — 500\xa0000 сум × 9" in after_left
-    assert "Шаг 5/8" in after_left  # then the freeze question; one step fewer
+    ask = await h.send(SELLER, END)
+    assert "Шаг 4/8" in texts(ask) and "оплачен" not in texts(ask).lower()  # straight to the freeze days
+    assert not [b for c in ask for b in buttons_of(c) if (b.callback_data or "").startswith("sl:pay:")]
     assert "Сколько дней" in texts(await h.click(SELLER, "sl:freeze:yes"))
-    assert "от 1 до 365" in texts(await h.send(SELLER, "0"))
     assert "бонусные дни" in texts(await h.send(SELLER, "20"))
-    ask_desc = texts(await h.click(SELLER, "sl:bonus:0"))
-    assert "описание" in ask_desc.lower() and "Цена продажи" not in ask_desc  # straight past the price
-    assert "бонусные дни" in texts(await h.click(SELLER, "sl:back:"))  # back skips the price too
-    await h.click(SELLER, "sl:bonus:0")
+    assert "Шаг 5/8" in texts(await h.click(SELLER, "sl:bonus:0"))  # the price is always asked
+    await h.send(SELLER, "3000000")
     await h.click(SELLER, "sl:skip:")
     await h.click(SELLER, "sl:skip:")
     await h.send(SELLER, "Алишер")
     preview = texts(await h.send(SELLER, contact="+998901112233"))
-    assert "💰 Цена: <b>4\xa0500\xa0000 сум</b>" in preview
-    assert "Рассрочка" not in preview
-    assert "Заморозка" not in preview  # the freeze days are kept, not shown in the bot
+    assert "💰 Цена: <b>3\xa0000\xa0000 сум</b>" in preview and "ассрочк" not in preview
     await h.click(SELLER, "sl:send:")
     listing = (await h.repo.seller_listings(SELLER, 10, 0))[0][0]
-    assert (listing["paid_in_full"], listing["monthly_payment"], listing["payments_left"]) == (0, 500_000, 9)
-    assert listing["freeze_days"] == 20
-    assert listing["price"] == 4_500_000
+    assert (listing["paid_in_full"], listing["monthly_payment"], listing["payments_left"]) == (1, None, None)
+    assert (listing["freeze_days"], listing["price"]) == (20, 3_000_000)
 
 
 async def test_the_1fit_tariff_is_not_asked(h):
@@ -390,23 +376,22 @@ async def test_the_1fit_tariff_is_not_asked(h):
     await h.click(SELLER, "sl:club:1fit")
     ask = await h.click(SELLER, "sl:city:tashkent")
     assert not [b for c in ask for b in buttons_of(c) if (b.callback_data or "").startswith("sl:plan:")]
-    assert "Шаг 3/9" in texts(ask) and "тариф" not in texts(ask).lower()
+    assert "Шаг 3/8" in texts(ask) and "тариф" not in texts(ask).lower()
 
 
-async def test_fully_paid_skips_installment_questions(h):
+async def test_back_through_the_membership_steps(h):
     await choose_lang(h, SELLER, "ru")
     await h.send(SELLER, "➕ Продать абонемент")
     await h.click(SELLER, "sl:kind:membership")
     await h.click(SELLER, "sl:club:1fit")
     await h.click(SELLER, "sl:city:tashkent")
-    await h.send(SELLER, END)
-    assert "Шаг 5/9" in texts(await h.click(SELLER, "sl:pay:full"))
+    assert "Шаг 4/8" in texts(await h.send(SELLER, END))
     assert "бонусные дни" in texts(await h.click(SELLER, "sl:freeze:no"))
     ask_price = texts(await h.click(SELLER, "sl:bonus:0"))
-    assert "Шаг 6/9" in ask_price and "больше он ничего не доплачивает" in ask_price
+    assert "Шаг 5/8" in ask_price and "больше он ничего не доплачивает" in ask_price
     assert "бонусные дни" in texts(await h.click(SELLER, "sl:back:"))  # back to the bonus days
-    assert "Шаг 5/9" in texts(await h.click(SELLER, "sl:back:"))  # back to the freeze question
-    assert "Шаг 4/9" in texts(await h.click(SELLER, "sl:back:"))  # then the payment, skipping installments
+    assert "Шаг 4/8" in texts(await h.click(SELLER, "sl:back:"))  # back to the freeze question
+    assert "Шаг 3/8" in texts(await h.click(SELLER, "sl:back:"))  # then the end date
 
 
 async def test_promo_code_wizard(h):
@@ -443,7 +428,6 @@ async def test_preview_says_what_the_seller_gives(h):
     await h.click(SELLER, "sl:club:1fit")
     await h.click(SELLER, "sl:city:tashkent")
     await h.send(SELLER, END)
-    await h.click(SELLER, "sl:pay:full")
     await h.click(SELLER, "sl:freeze:no")
     await h.click(SELLER, "sl:bonus:0")
     await h.send(SELLER, "2 000 000")
@@ -452,21 +436,6 @@ async def test_preview_says_what_the_seller_gives(h):
     await h.send(SELLER, "Алишер")
     preview = texts(await h.send(SELLER, contact="+998901112233"))
     assert "📦 Вы отдаёте покупателю <b>7 мес.</b> — до" in preview and "Всё верно?" in preview
-
-
-def test_stored_installment_is_not_a_suspicious_price():
-    # listing #21: 10 000 now + 9 × 533 333 to 1Fit was flagged «possibly the monthly price», because the
-    # stored listing says paid_in_full=0 and only False counted as an installment
-    from types import SimpleNamespace
-
-    from repass.bot.ui import price_advice
-    ctx = SimpleNamespace(repo=SimpleNamespace(fit_prices=None))
-    end = (today_local() + timedelta(days=293)).isoformat()
-    stored = {"kind": "membership", "end_date": end, "tariff_days": 365, "price": 10_000,
-              "paid_in_full": 0, "monthly_payment": 533_333, "payments_left": 9}
-    a = price_advice(ctx, stored)
-    assert a.installments == 4_799_997 and not a.suspicious(10_000)
-    assert price_advice(ctx, {**stored, "paid_in_full": 1}).installments == 0
 
 
 def _key(h):

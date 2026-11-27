@@ -16,7 +16,7 @@ from ...money import fmt_money
 from ...ocr import MAX_SCREENSHOTS
 from ...price_watch import PriceWatcher
 from ...repo import LK, LS, Repo, RepoError, today_local
-from ...usage import card_end, payments_guess, with_bonus
+from ...usage import card_end, with_bonus
 from ...validators import (
     DESC_MAX,
     TARIFF_PLANS,
@@ -28,9 +28,7 @@ from ...validators import (
     parse_end_date,
     parse_bonus_days,
     parse_freeze_days,
-    parse_monthly,
     parse_name,
-    parse_payments_left,
     parse_price,
     parse_promo_code,
     parse_start_date,
@@ -66,9 +64,6 @@ class SellForm(StatesGroup):
     tariff = State()
     date = State()
     start = State()
-    payment = State()
-    monthly = State()
-    left = State()
     freeze = State()
     freeze_days = State()
     bonus = State()
@@ -82,20 +77,19 @@ class SellForm(StatesGroup):
     choose = State()
 
 
-STEPS = ["kind", "club", "city", "tariff", "date", "start", "payment", "monthly", "left", "freeze", "freeze_days", "bonus", "code", "price", "desc", "photo",
+STEPS = ["kind", "club", "city", "tariff", "date", "start", "freeze", "freeze_days", "bonus", "code", "price", "desc", "photo",
          "name", "phone"]
-INSTALLMENT_STEPS = ("monthly", "left")  # asked only when the membership is paid in installments
-MEMBERSHIP_ONLY = ("club", "start", "payment", "monthly", "left", "freeze", "freeze_days", "bonus")
-FIT_ONLY = ("payment", "monthly", "left", "bonus")  # 1Fit's installments and bonus days
+MEMBERSHIP_ONLY = ("club", "start", "freeze", "freeze_days", "bonus")
+FIT_ONLY = ("bonus",)  # 1Fit's bonus days
 PROMO_ONLY = ("tariff", "code")  # a membership has no tariff: «12 months» misled buyers
 STATE_OF = {s: getattr(SellForm, s) for s in STEPS}
-# Steps shown as «Step n/total»; the installment answers and the phone belong to the step before them.
+# Steps shown as «Step n/total»; the phone belongs to the step before it.
 NUMBERED = {
-    LK.MEMBERSHIP: ["club", "city", "date", "payment", "freeze", "price", "desc", "photo", "name"],
+    LK.MEMBERSHIP: ["club", "city", "date", "freeze", "price", "desc", "photo", "name"],
     LK.PROMO: ["city", "tariff", "date", "code", "price", "desc", "photo", "name"],
 }
 FIELDS = {  # field in «Change» menu -> first step to ask
-    "club": "club", "city": "city", "tariff": "tariff", "date": "date", "start": "start", "payment": "payment", "freeze": "freeze", "bonus": "bonus", "code": "code",
+    "club": "club", "city": "city", "tariff": "tariff", "date": "date", "start": "start", "freeze": "freeze", "bonus": "bonus", "code": "code",
     "price": "price", "desc": "desc", "photo": "photo", "contacts": "name",
 }
 # A promo code is described in its own words: what it gives, until when to activate it, what it costs.
@@ -106,10 +100,6 @@ def _kind(data: dict) -> str:
     return (data.get("draft") or {}).get("kind") or LK.MEMBERSHIP
 
 
-def _installment(data: dict) -> bool:
-    return _kind(data) == LK.MEMBERSHIP and (data.get("draft") or {}).get("paid_in_full") is False
-
-
 def _skipped(data: dict, step: str) -> bool:
     if step == "start":  # no longer asked: «used N of 12» comes from the end date minus the tariff
         return True
@@ -117,13 +107,11 @@ def _skipped(data: dict, step: str) -> bool:
         return step in MEMBERSHIP_ONLY
     if step in FIT_ONLY and not is_fit(data.get("draft") or {}):  # another club: no 1Fit questions
         return True
-    if step == "price" and data.get("auto_price") and is_fit(data.get("draft") or {}):  # worked out from the tariff, the end date and the installments
-        return True
-    if step == "price" and _installment(data):  # the price is the payments left: monthly × how many
+    if step == "price" and data.get("auto_price") and is_fit(data.get("draft") or {}):  # worked out from the end date
         return True
     if step == "freeze_days":  # asked only after «yes, there are freeze days»
         return not (data.get("draft") or {}).get("has_freeze")
-    return step in PROMO_ONLY or (step in INSTALLMENT_STEPS and not _installment(data))
+    return step in PROMO_ONLY
 
 
 def _neighbour(data: dict, step: str, delta: int) -> str:
@@ -187,17 +175,6 @@ async def ask(message: Message, state: FSMContext, ctx: Ctx, step: str) -> None:
     elif step == "start":
         skip = [[btn(ctx.t("common.skip"), SellCb(action="skip"))]]
         await message.answer(prompt(ctx, data, step), reply_markup=_nav(ctx, step, skip))
-    elif step == "payment":
-        options = [[btn(ctx.t("sell.pay_full"), SellCb(action="pay", value="full"))],
-                   [btn(ctx.t("sell.pay_installment"), SellCb(action="pay", value="installment"))]]
-        await message.answer(prompt(ctx, data, step), reply_markup=_nav(ctx, step, options))
-    elif step == "monthly":
-        await message.answer(ctx.t("sell.ask_monthly"), reply_markup=_nav(ctx, step))
-    elif step == "left":
-        # Usually one payment per month until the end date: offer that number, a tap instead of typing.
-        guess = payments_guess(data["draft"]["end_date"], today_local())
-        offer = [[btn(ctx.t("sell.left_ok", n=guess), SellCb(action="leftok", value=str(guess)))]]
-        await message.answer(ctx.t("sell.ask_left_guess", n=guess), reply_markup=_nav(ctx, step, offer))
     elif step == "freeze":
         options = [[btn(ctx.t("sell.freeze_no"), SellCb(action="freeze", value="no")),
                     btn(ctx.t("sell.freeze_yes"), SellCb(action="freeze", value="yes"))]]
@@ -208,12 +185,7 @@ async def ask(message: Message, state: FSMContext, ctx: Ctx, step: str) -> None:
         none = [[btn(ctx.t("sell.bonus_no"), SellCb(action="bonus", value="0"))]]
         await message.answer(ctx.t("sell.ask_bonus"), reply_markup=_nav(ctx, step, none))
     elif step == "price":
-        d = data.get("draft") or {}
-        if _installment(data):
-            text = step_title(ctx, data, step) + ctx.t(
-                "sell.ask_price_installment", monthly=fmt_money(d["monthly_payment"]), left=d["payments_left"])
-        else:
-            text = prompt(ctx, data, step)
+        text = prompt(ctx, data, step)
         # The price worked out from 1Fit's prices today, one tap to take it; or the seller types their own.
         await message.answer(text + _advice_part(ctx, data), reply_markup=_nav(ctx, step, _advice_rows(ctx, data)))
     elif step == "desc":
@@ -238,7 +210,7 @@ async def ask(message: Message, state: FSMContext, ctx: Ctx, step: str) -> None:
 
 
 def _advice(ctx: Ctx, data: dict):
-    if _kind(data) != LK.MEMBERSHIP or _installment(data):
+    if _kind(data) != LK.MEMBERSHIP:
         return None
     return price_advice(ctx, data.get("draft") or {})
 
@@ -259,13 +231,9 @@ def _advice_rows(ctx: Ctx, data: dict) -> list:
 async def advance(message: Message, state: FSMContext, ctx: Ctx, step: str) -> None:
     """Go to the step after ``step`` — or back to the preview when editing a single field."""
     data = await state.get_data()
-    if step in ("monthly", "left") and installment_price(data.get("draft") or {}):
-        d = data["draft"]  # the price step is skipped: say what the price came to
-        await message.answer(ctx.t("sell.price_installment", price=fmt_money(d["price"]),
-                                   monthly=fmt_money(d["monthly_payment"]), left=d["payments_left"]))
     has_freeze = bool((data.get("draft") or {}).get("has_freeze"))
-    if step == "name" or (step in ("payment", "monthly") and _installment(data)) or (step == "freeze" and has_freeze):
-        # Steps that belong together: name -> phone, installment -> monthly payment -> payments left.
+    if step == "name" or (step == "freeze" and has_freeze):
+        # Steps that belong together: name -> phone, freeze -> freeze days.
         await ask(message, state, ctx, _neighbour(data, step, 1))
         return
     if data.get("single") or step == "phone":
@@ -274,24 +242,10 @@ async def advance(message: Message, state: FSMContext, ctx: Ctx, step: str) -> N
     await ask(message, state, ctx, _neighbour(data, step, 1))
 
 
-def installment_price(draft: dict) -> int | None:
-    """An installment membership costs what is left to pay 1Fit: 500 000 a month × 9 payments = 4 500 000."""
-    if draft.get("kind", LK.MEMBERSHIP) == LK.MEMBERSHIP and draft.get("paid_in_full") is False \
-            and draft.get("monthly_payment") and draft.get("payments_left"):
-        return draft["monthly_payment"] * draft["payments_left"]
-    return None
-
-
 async def draft_update(state: FSMContext, **values) -> dict:
     data = await state.get_data()
     draft = dict(data.get("draft") or {})
-    was_installment = installment_price(draft) is not None
     draft.update(values)
-    price = installment_price(draft)
-    if price is not None:
-        draft["price"] = price
-    elif was_installment and draft.get("paid_in_full"):
-        draft["price"] = None  # now fully paid: the seller names the price
     await state.update_data(draft=draft)
     return draft
 
@@ -349,7 +303,7 @@ def preview_kb(ctx: Ctx, data: dict, fee: int = 0) -> InlineKeyboardMarkup:
 async def apply_auto_price(state: FSMContext, ctx: Ctx) -> None:
     """With AUTO_PRICE a membership costs the recommended price, recounted when the answers change."""
     data = await state.get_data()
-    if not data.get("auto_price") or _kind(data) != LK.MEMBERSHIP or _installment(data):
+    if not data.get("auto_price") or _kind(data) != LK.MEMBERSHIP:
         return
     draft = data.get("draft") or {}
     a = price_advice(ctx, draft)
@@ -360,13 +314,6 @@ async def apply_auto_price(state: FSMContext, ctx: Ctx) -> None:
 async def show_preview(message: Message, state: FSMContext, ctx: Ctx) -> None:
     data = await state.get_data()
     d = data.get("draft") or {}
-    if _kind(data) == LK.MEMBERSHIP and is_fit(d):
-        # Listed before these were asked, or the club was just changed to 1Fit: ask them first.
-        missing = "payment" if d.get("paid_in_full") is None else None
-        if missing:
-            await state.update_data(single=True)
-            await ask(message, state, ctx, missing)
-            return
     if not d.get("price") and not _skipped(data, "price"):
         await state.update_data(single=True)
         await ask(message, state, ctx, "price")
@@ -404,10 +351,9 @@ async def start_edit(message: Message, state: FSMContext, ctx: Ctx, listing: dic
     """Called from «My listings»: open the preview of an existing listing for editing."""
     draft = {k: listing[k] for k in (
         "city", "tariff", "end_date", "start_date", "price", "price_negotiable", "description", "screenshot_file_id",
-        "seller_name", "seller_phone", "monthly_payment", "payments_left", "kind", "promo_code", "tariff_days", "freeze_days",
+        "seller_name", "seller_phone", "kind", "promo_code", "tariff_days", "freeze_days",
         "club",
     )}
-    draft["paid_in_full"] = None if listing["paid_in_full"] is None else bool(listing["paid_in_full"])
     draft["tariff_days"] = None  # the 1Fit tariff is not asked any more: it cannot be changed, so it does not hold the dates
     draft["has_freeze"] = bool(listing["freeze_days"])
     draft["bonus_days"] = listing["bonus_days"] or 0
@@ -426,8 +372,8 @@ async def start_edit(message: Message, state: FSMContext, ctx: Ctx, listing: dic
 
 
 # ------------------------------------------------------------------ navigation
-_WIZARD = (SellForm.kind, SellForm.club, SellForm.code, SellForm.city, SellForm.freeze, SellForm.freeze_days, SellForm.tariff, SellForm.date, SellForm.start, SellForm.payment, SellForm.monthly,
-           SellForm.left, SellForm.price, SellForm.desc, SellForm.photo, SellForm.name, SellForm.phone,
+_WIZARD = (SellForm.kind, SellForm.club, SellForm.code, SellForm.city, SellForm.freeze, SellForm.freeze_days, SellForm.tariff, SellForm.date, SellForm.start,
+           SellForm.price, SellForm.desc, SellForm.photo, SellForm.name, SellForm.phone,
            SellForm.preview, SellForm.choose)
 
 
@@ -452,9 +398,7 @@ async def on_back(call: CallbackQuery, state: FSMContext, ctx: Ctx) -> None:
     await call.answer()
     await call.message.edit_reply_markup(reply_markup=None)
     data = await state.get_data()
-    if data.get("single") and step in INSTALLMENT_STEPS:
-        await ask(call.message, state, ctx, _neighbour(data, step, -1))  # the installment answers come together
-    elif data.get("single") and step != "phone":
+    if data.get("single") and step != "phone":
         await show_preview(call.message, state, ctx)
     elif step == "kind":
         await show_preview(call.message, state, ctx)
@@ -505,9 +449,9 @@ async def on_club(call: CallbackQuery, callback_data: SellCb, state: FSMContext,
     before = (await state.get_data()).get("draft") or {}
     update: dict = {"club": club}
     if club != FIT:  # the 1Fit answers do not apply: paid for, no tariff, no bonus days
-        update.update(tariff_days=None, paid_in_full=True, monthly_payment=None, payments_left=None, bonus_days=0)
+        update.update(tariff_days=None, bonus_days=0)
     elif not is_fit(before):  # now 1Fit: its questions are asked (show_preview asks what is missing)
-        update.update(tariff_days=None, paid_in_full=None)
+        update.update(tariff_days=None)
     if is_fit(before) != (club == FIT) and before.get("price"):
         update["price"] = None  # a 1Fit price is not another club's price: asked again
     await draft_update(state, **update)
@@ -589,46 +533,6 @@ async def on_start_skip(call: CallbackQuery, state: FSMContext, ctx: Ctx) -> Non
     await call.message.edit_reply_markup(reply_markup=None)
     await draft_update(state, start_date=None)
     await advance(call.message, state, ctx, "start")
-
-
-@router.callback_query(SellForm.payment, SellCb.filter(F.action == "pay"))
-async def on_payment(call: CallbackQuery, callback_data: SellCb, state: FSMContext, ctx: Ctx) -> None:
-    if callback_data.value not in ("full", "installment"):
-        await call.answer(ctx.t("common.stale"), show_alert=True)
-        return
-    full = callback_data.value == "full"
-    await call.answer()
-    choice = ctx.t("sell.pay_full" if full else "sell.pay_installment")
-    await call.message.edit_text(prompt(ctx, await state.get_data(), "payment") + "\n\n<b>" + esc(choice) + "</b>")
-    if full:
-        await draft_update(state, paid_in_full=True, monthly_payment=None, payments_left=None)
-    else:
-        await draft_update(state, paid_in_full=False)
-    await advance(call.message, state, ctx, "payment")
-
-
-@router.message(SellForm.monthly)
-async def on_monthly(message: Message, state: FSMContext, ctx: Ctx) -> None:
-    await _text_step(message, state, ctx, "monthly", parse_monthly, "monthly_payment")
-
-
-@router.message(SellForm.left)
-async def on_left(message: Message, state: FSMContext, ctx: Ctx) -> None:
-    await _text_step(message, state, ctx, "left", parse_payments_left, "payments_left")
-
-
-@router.callback_query(SellForm.left, SellCb.filter(F.action == "leftok"))
-async def on_left_ok(call: CallbackQuery, callback_data: SellCb, state: FSMContext, ctx: Ctx) -> None:
-    """«✅ Yes, 7»: the suggested number of payments is right."""
-    try:
-        n = parse_payments_left(callback_data.value)
-    except ValidationError:
-        await call.answer(ctx.t("common.stale"), show_alert=True)
-        return
-    await call.answer()
-    await call.message.edit_reply_markup(reply_markup=None)
-    await draft_update(state, payments_left=n)
-    await advance(call.message, state, ctx, "left")
 
 
 @router.callback_query(SellForm.freeze, SellCb.filter(F.action == "freeze"))
@@ -941,14 +845,6 @@ async def on_send(call: CallbackQuery, state: FSMContext, ctx: Ctx, notifier: No
         await call.message.edit_reply_markup(reply_markup=None)
         await ask(call.message, state, ctx, "kind")
         return
-    if draft["kind"] == LK.MEMBERSHIP and is_fit(draft) and (draft.get("paid_in_full") is None or (draft["paid_in_full"] is False
-                                             and not (draft.get("monthly_payment") and draft.get("payments_left")))):
-        # Fully paid or installment is not answered yet (an old listing or an abandoned step).
-        await call.answer()
-        await call.message.edit_reply_markup(reply_markup=None)
-        await state.update_data(single=True)
-        await ask(call.message, state, ctx, "payment")
-        return
     # An automatic price keeps following the days left after listing (Repo.reprice, every day).
     draft["price_auto"] = bool(data.get("auto_price")) and draft.get("kind") != LK.PROMO and is_fit(draft)
     fee = ctx.cfg.listing_fee if ctx.cfg.fee_enabled else 0
@@ -995,11 +891,10 @@ async def ask_instagram(message: Message, ctx: Ctx, data: dict) -> None:
                              reply_markup=kb([btn(ctx.t("sell.instagram_btn"), url=ctx.cfg.instagram_url)]))
 
 
-# Text typed while a button is expected (kind / city / payment / preview / field menu).
+# Text typed while a button is expected (kind / city / preview / field menu).
 @router.message(SellForm.kind)
 @router.message(SellForm.city)
 @router.message(SellForm.freeze)
-@router.message(SellForm.payment)
 @router.message(SellForm.preview)
 @router.message(SellForm.choose)
 async def on_text_instead_of_button(message: Message, ctx: Ctx) -> None:

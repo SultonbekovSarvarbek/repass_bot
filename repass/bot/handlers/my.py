@@ -36,7 +36,7 @@ async def card(ctx: Ctx, listing: dict, page: int) -> tuple[str, InlineKeyboardM
     contacts, _ = await seller_contacts(ctx, listing)
     parts = [
         ctx.t("my.status_line", status=status_label(ctx, listing)),
-        listing_public(ctx, listing, listing["id"], installments=True),
+        listing_public(ctx, listing, listing["id"]),
         contacts,
     ]
     if Repo.fee_due(listing):

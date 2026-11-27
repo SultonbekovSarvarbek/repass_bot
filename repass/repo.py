@@ -15,7 +15,7 @@ import aiosqlite
 
 from .clubs import CLUBS, FIT, is_fit
 from .pricing import advise, normalize_prices
-from .usage import DAYS_PER_MONTH, with_bonus
+from .usage import with_bonus
 
 # Uzbekistan has no DST: UTC+5 all year round.
 TZ = timezone(timedelta(hours=5))
@@ -95,14 +95,14 @@ CREATE TABLE IF NOT EXISTS listings (
     start_date                TEXT,               -- YYYY-MM-DD, optional: when the membership was activated
     price                     INTEGER NOT NULL CHECK (price > 0),
     price_negotiable          INTEGER NOT NULL DEFAULT 0,  -- 1: price is open to negotiation
-    paid_in_full              INTEGER,            -- 1: fully paid, 0: installment, NULL: not asked (old listings)
-    monthly_payment           INTEGER,            -- installment: what the buyer keeps paying every month
-    payments_left             INTEGER,            -- installment: how many of those payments are left
+    paid_in_full              INTEGER,            -- not used any more: always 1 for a membership (installments are not asked)
+    monthly_payment           INTEGER,            -- not used any more: always NULL
+    payments_left             INTEGER,            -- not used any more: always NULL
     tariff_days               INTEGER,            -- membership: the 1Fit tariff, 180 / 365 / 730 days; NULL on old listings
     freeze_days               INTEGER,            -- membership: unused freeze days (0 = none); NULL on old listings
     bonus_days                INTEGER NOT NULL DEFAULT 0,  -- membership: 1Fit bonus days, already added to end_date
     price_auto                INTEGER NOT NULL DEFAULT 0,  -- 1: the recommended price, lowered every day as days pass
-    payments_as_of            TEXT,               -- YYYY-MM-DD: the day payments_left was true; one fewer each month after
+    payments_as_of            TEXT,               -- not used any more: always NULL
     screenshots               TEXT,               -- JSON list of up to 3 Telegram file ids (the first is screenshot_file_id)
     ocr                       TEXT,               -- JSON: what was read from the screenshots (end_date, tariff_days, …)
     description               TEXT NOT NULL DEFAULT '',
@@ -241,11 +241,6 @@ CREATE TABLE IF NOT EXISTS fit_price_checks (
 """
 
 
-# The price buyers see, in SQL (the same rule as ui.buyer_total and the Mini App's price_total).
-SHOWN_PRICE = ("CASE WHEN paid_in_full = 0 AND monthly_payment > 0 AND payments_left > 0"
-               " THEN monthly_payment * payments_left ELSE price END")
-
-
 def _row(row: aiosqlite.Row | None) -> dict[str, Any] | None:
     return dict(row) if row is not None else None
 
@@ -325,6 +320,12 @@ class Repo:
                 " AND monthly_payment > 0 AND payments_left > 0 AND status NOT IN ('sold', 'reserved')")
             await self.db.execute("INSERT INTO settings(key, value, updated_at) VALUES ('installment_price_v1', 'true', ?)",
                                   (now_iso(),))
+        # Installments are no longer asked or shown: the bank has paid 1Fit in full and the payments stay the
+        # seller's. Old installment listings keep their price and become plain memberships.
+        await self.db.execute(
+            "UPDATE listings SET paid_in_full=1, monthly_payment=NULL, payments_left=NULL, payments_as_of=NULL"
+            " WHERE kind='membership' AND (paid_in_full IS NOT 1 OR monthly_payment IS NOT NULL"
+            " OR payments_left IS NOT NULL OR payments_as_of IS NOT NULL)")
 
     async def close(self) -> None:
         if self._db is not None:
@@ -438,14 +439,6 @@ class Repo:
             raise RepoError("bad_start")
         if draft.get("club", FIT) not in CLUBS:
             raise RepoError("incomplete")
-        if not is_fit(draft):
-            return  # other clubs: no 1Fit tariff and no 1Fit installments
-        # Fully paid or installment must be stated: «9 months, 500 000» meant 500 000 every month.
-        paid = draft.get("paid_in_full")
-        if paid not in (True, False, 0, 1):
-            raise RepoError("incomplete")
-        if not paid and not (draft.get("monthly_payment") and draft.get("payments_left")):
-            raise RepoError("incomplete")
 
     @staticmethod
     def _bonus(draft: dict[str, Any]) -> int:
@@ -473,7 +466,7 @@ class Repo:
         if not is_fit(draft):  # another club: paid for, no 1Fit tariff
             return LK.MEMBERSHIP, None, None, draft.get("freeze_days"), draft.get("start_date"), 1, None, None
         return (LK.MEMBERSHIP, None, draft.get("tariff_days"), draft.get("freeze_days"), draft.get("start_date"),
-                *Repo._payment(draft))
+                1, None, None)
 
     @staticmethod
     def _shots(draft: dict[str, Any]) -> tuple[str | None, str | None, str | None]:
@@ -518,18 +511,10 @@ class Repo:
         return out
 
     @staticmethod
-    def _auto_fields(draft: dict[str, Any]) -> tuple[int, str | None]:
-        """price_auto, payments_as_of: whether the price follows the days, and when payments_left was stated."""
+    def _auto_fields(draft: dict[str, Any]) -> tuple[int, None]:
+        """price_auto, payments_as_of: whether the price follows the days; the second is a column no longer used."""
         membership = draft.get("kind") != LK.PROMO
-        auto = int(bool(draft.get("price_auto")) and membership and is_fit(draft))  # the advice is 1Fit's only
-        installment = membership and draft.get("paid_in_full") in (False, 0) and draft.get("paid_in_full") is not None
-        return auto, (today_local().isoformat() if installment and draft.get("payments_left") else None)
-
-    @staticmethod
-    def _payment(draft: dict[str, Any]) -> tuple[int, int | None, int | None]:
-        if draft["paid_in_full"]:
-            return 1, None, None
-        return 0, draft["monthly_payment"], draft["payments_left"]
+        return int(bool(draft.get("price_auto")) and membership and is_fit(draft)), None  # the advice is 1Fit's only
 
     async def create_listing(self, seller_id: int, lang: str, draft: dict[str, Any], fee: int = 0) -> int:
         """``fee``: what the seller pays to place it; until then it waits as unpaid, unseen by the admins."""
@@ -802,10 +787,10 @@ class Repo:
             params["club"] = club
         total = await self._scalar(f"SELECT COUNT(*) FROM listings WHERE {where}", params)
         rows = await self._all(
-            # paid placements («✓ Checked») above the free ones; then the cheapest first, by the price buyers see:
-            # installments cost monthly × payments left. The sold ones after everything on sale.
+            # paid placements («✓ Checked») above the free ones; then the cheapest first.
+            # The sold ones after everything on sale.
             f"SELECT * FROM listings WHERE {where} ORDER BY status=:sold, fee_paid_at IS NULL,"
-            f" {SHOWN_PRICE} ASC, published_at DESC, id DESC"
+            " price ASC, published_at DESC, id DESC"
             " LIMIT :lim OFFSET :off",
             {**params, "lim": limit, "off": offset},
         )
@@ -997,8 +982,8 @@ class Repo:
             )
 
     async def reprice(self, today: date | None = None) -> int:
-        """Every day: one installment fewer for each month the seller has paid since listing, and the automatic
-        price lowered to what the days still left are worth. Listings in a deal (reserved) keep their price.
+        """Every day: the automatic price lowered to what the days still left are worth. Listings in a deal
+        (reserved) keep their price.
         Returns how many prices changed."""
         today = today or today_local()
         rows = await self._all(
@@ -1011,31 +996,9 @@ class Repo:
                 listing = await self.get_listing(listing["id"])  # fresh: a deal may have started meanwhile
                 if listing["status"] not in (LS.PENDING, LS.APPROVED):
                     continue
-                left, as_of = listing["payments_left"], listing["payments_as_of"]
-                if listing["paid_in_full"] == 0 and left and as_of:
-                    paid = int((today - date.fromisoformat(as_of)).days // DAYS_PER_MONTH)
-                    if paid > 0:
-                        # the price was «monthly × payments left»: it follows the payments down
-                        derived = listing["price"] == listing["monthly_payment"] * listing["payments_left"]
-                        left = max(0, left - paid)
-                        as_of = (date.fromisoformat(as_of) + timedelta(days=round(paid * DAYS_PER_MONTH))).isoformat()
-                        if left:
-                            await self.db.execute("UPDATE listings SET payments_left=?, payments_as_of=? WHERE id=?",
-                                                  (left, as_of, listing["id"]))
-                            if derived:
-                                await self.db.execute("UPDATE listings SET price=? WHERE id=?",
-                                                      (listing["monthly_payment"] * left, listing["id"]))
-                        else:  # all paid off: from now on it is a fully paid membership
-                            await self.db.execute(
-                                "UPDATE listings SET paid_in_full=1, monthly_payment=NULL, payments_left=NULL, "
-                                "payments_as_of=NULL WHERE id=?", (listing["id"],))
-                        listing = await self.get_listing(listing["id"])
                 if not listing["price_auto"]:
                     continue
-                installment = listing["paid_in_full"] == 0
-                a = advise(listing["end_date"], today, self.fit_prices,
-                           listing["monthly_payment"] if installment else None,
-                           listing["payments_left"] if installment else None, plan_days=listing["tariff_days"])
+                a = advise(listing["end_date"], today, self.fit_prices, plan_days=listing["tariff_days"])
                 if a and a.recommended != listing["price"]:
                     await self.db.execute(
                         "UPDATE listings SET price=?, commission_accepted_price=? WHERE id=?",

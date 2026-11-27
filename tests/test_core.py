@@ -6,8 +6,8 @@ import pytest
 from repass.money import calc_commission, fmt_money
 from repass.repo import LS, Repo, RepoError, today_local
 from repass.validators import (
-    ValidationError, contains_contacts, normalize_phone, parse_description, parse_end_date, parse_monthly,
-    parse_payments_left, parse_price, parse_start_date,
+    ValidationError, contains_contacts, normalize_phone, parse_description, parse_end_date,
+    parse_price, parse_start_date,
 )
 from repass.usage import remaining, usage
 
@@ -243,17 +243,6 @@ async def test_catalog_newest_first_and_city_filter(repo):
     assert dict(await repo.catalog_cities()) == {"tashkent": 1, "samarkand": 1}
 
 
-async def test_catalog_orders_installments_by_their_total(repo):
-    # an installment is shown as 533 333 × 9 = 4 799 997: dearer than 2 000 000
-    a = await repo.create_listing(1, "ru", draft(price=580_000, paid_in_full=False, monthly_payment=533_333,
-                                                 payments_left=9, commission_accepted_price=580_000))
-    b = await repo.create_listing(1, "ru", draft(price=2_000_000))
-    await repo.approve(a, 99)
-    await repo.approve(b, 99)
-    rows, _ = await repo.catalog(None, 10, 0)
-    assert [r["id"] for r in rows] == [b, a]
-
-
 async def test_edit_goes_back_to_moderation(repo):
     lid = await repo.create_listing(1, "ru", draft())
     await repo.approve(lid, 99)
@@ -314,29 +303,14 @@ async def test_old_database_gets_new_columns(tmp_path):
         await r.close()
 
 
-def test_installment_parsing():
-    assert parse_monthly("500 000") == 500_000
-    assert parse_payments_left("9") == 9 and parse_payments_left("9 месяцев") == 9
-    for bad in ("0", "61", "", "девять", "1-2"):
-        with pytest.raises(ValidationError) as e:
-            parse_payments_left(bad)
-        assert e.value.code == "bad_payments_left"
-    with pytest.raises(ValidationError) as e:
-        parse_monthly("100")
-    assert e.value.code == "bad_monthly"
-
-
-async def test_payment_kind_is_required(repo):
-    with pytest.raises(RepoError):
-        await repo.create_listing(1, "ru", draft(paid_in_full=None))
-    with pytest.raises(RepoError):
-        await repo.create_listing(1, "ru", draft(paid_in_full=False, monthly_payment=500_000))
+async def test_installment_answers_are_not_stored(repo):
+    """Whatever an old client sends, a membership is stored as a plain one: installments are not asked."""
     lid = await repo.create_listing(1, "ru", draft(paid_in_full=False, monthly_payment=500_000, payments_left=9))
     listing = await repo.get_listing(lid)
-    assert (listing["paid_in_full"], listing["monthly_payment"], listing["payments_left"]) == (0, 500_000, 9)
-    lid = await repo.create_listing(1, "ru", draft(monthly_payment=500_000, payments_left=9))  # fully paid
-    listing = await repo.get_listing(lid)
     assert (listing["paid_in_full"], listing["monthly_payment"], listing["payments_left"]) == (1, None, None)
+    assert listing["price"] == 2_000_000 and listing["payments_as_of"] is None
+    lid = await repo.create_listing(1, "ru", draft(paid_in_full=None))  # the question is not required any more
+    assert (await repo.get_listing(lid))["paid_in_full"] == 1
 
 
 async def test_promo_code_listing(repo):
@@ -404,8 +378,8 @@ def test_default_membership_rate_is_15(monkeypatch):
     assert load_config().commission_percent == 15
 
 
-async def test_old_installment_listings_get_the_total_price(tmp_path):
-    """Listed before the rule: 5 800 000 typed + 11 × 557 000 to 1Fit becomes 6 127 000, once, on start."""
+async def test_old_installment_listings_become_plain_memberships(tmp_path):
+    """An old installment listing keeps the price buyers saw (11 × 557 000) and loses the installment itself."""
     path = tmp_path / "inst.db"
     r = Repo(path, 10)
     await r.connect()
@@ -418,19 +392,8 @@ async def test_old_installment_listings_get_the_total_price(tmp_path):
     r = Repo(path, 10)
     await r.connect()
     try:
-        assert (await r.get_listing(lid))["price"] == 6_127_000
+        listing = await r.get_listing(lid)
+        assert listing["price"] == 6_127_000
+        assert (listing["paid_in_full"], listing["monthly_payment"], listing["payments_left"]) == (1, None, None)
     finally:
         await r.close()
-
-
-async def test_catalog_is_ordered_by_the_price_buyers_see(repo):
-    """An installment shows monthly × payments left: it is sorted by that, not by a price stored before."""
-    inst = await repo.create_listing(1, "ru", draft(price=2_000_000))
-    await repo.db.execute("UPDATE listings SET paid_in_full=0, monthly_payment=557000, payments_left=1, price=5800000 "
-                          "WHERE id=?", (inst,))  # shown as 557 000
-    full = await repo.create_listing(1, "ru", draft(price=750_000))
-    dear = await repo.create_listing(1, "ru", draft(price=3_710_000))
-    for i in (inst, full, dear):
-        await repo.approve(i, 99)
-    rows, _ = await repo.catalog(None, 10, 0)
-    assert [r["id"] for r in rows] == [inst, full, dear]

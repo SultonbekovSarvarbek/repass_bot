@@ -43,7 +43,6 @@ from ..validators import (
     MAX_YEARS_AHEAD,
     MAX_YEARS_BACK,
     NAME_MAX,
-    PAYMENTS_LEFT_MAX,
     PRICE_MAX,
     PRICE_MIN,
     TARIFF_MAX,
@@ -54,8 +53,6 @@ from ..validators import (
     parse_end_date,
     parse_bonus_days,
     parse_freeze_days,
-    parse_monthly,
-    parse_payments_left,
     parse_start_date,
     parse_name,
     parse_price,
@@ -101,25 +98,14 @@ def month_cost(listing: dict[str, Any], fit_prices: dict[int, int] | None) -> di
     A price far too low to be the whole term is flagged ``suspicious`` instead of shown as a discount."""
     if listing["kind"] == LK.PROMO or not is_fit(listing):  # compared with 1Fit's prices: 1Fit only
         return None
-    installment = listing["paid_in_full"] == 0
-    a = advise(listing["end_date"], today_local(), fit_prices,
-               listing["monthly_payment"] if installment else None, listing["payments_left"] if installment else None,
-               plan_days=listing["tariff_days"])
+    a = advise(listing["end_date"], today_local(), fit_prices, plan_days=listing["tariff_days"])
     if a and a.suspicious(listing["price"]):
         return {"suspicious": True}
     if not a or a.saving(listing["price"]) <= 0:
         return None
     price = listing["price"]
-    return {"total": round_k(a.total(price)), "fit_total": round_k(a.fit_value), "saving": a.saving(price),
+    return {"total": round_k(price), "fit_total": round_k(a.fit_value), "saving": a.saving(price),
             "saved": round_k(a.saved(price))}
-
-
-def price_total(listing: dict[str, Any]) -> int:
-    """The price buyers see. Installments: the total left to pay, monthly × payments left (557 000 × 11);
-    otherwise exactly what the seller set."""
-    if listing["paid_in_full"] == 0 and listing["monthly_payment"] and listing["payments_left"]:
-        return listing["monthly_payment"] * listing["payments_left"]
-    return listing["price"]
 
 
 def seller_view(listing: dict[str, Any], seller: dict[str, Any] | None) -> dict[str, Any]:
@@ -143,8 +129,6 @@ def public_view(listing: dict[str, Any], fit_prices: dict[int, int] | None = Non
     # the tariff counts from the card's end: bonus days are not part of it
     view["usage"] = usage(listing["start_date"], view["card_end_date"], today_local(), listing["tariff_days"])
     view["left"] = remaining(listing["end_date"], today_local())
-    # Buyers never see the installments, only the whole sum they pay: the price plus the payments still due to 1Fit
-    view["price_total"] = price_total(listing)
     view["month_cost"] = month_cost(listing, fit_prices)
     return view
 
@@ -156,9 +140,6 @@ def own_view(ctx: Ctx, listing: dict[str, Any]) -> dict[str, Any]:
     return {
         **public_view(listing, ctx.repo.fit_prices),
         # the seller's own answers, to edit them: never in the public view
-        "paid_in_full": None if listing["paid_in_full"] is None else bool(listing["paid_in_full"]),
-        "monthly_payment": listing["monthly_payment"] if listing["paid_in_full"] == 0 else None,
-        "payments_left": listing["payments_left"] if listing["paid_in_full"] == 0 else None,
         "promo_code": listing["promo_code"],
         "status": "expired" if expired else status,
         "reject_reason": listing["reject_reason"] if status == LS.REJECTED else None,
@@ -338,7 +319,7 @@ class WebApp:
                 "tariff_max": TARIFF_MAX, "name_max": NAME_MAX,
                 "date_min": today.isoformat(), "date_max": f"{today.year + MAX_YEARS_AHEAD}-12-31",
                 "start_min": f"{today.year - MAX_YEARS_BACK}-01-01", "start_max": today.isoformat(),
-                "payments_left_max": PAYMENTS_LEFT_MAX, "plans": list(TARIFF_PLANS),
+                "plans": list(TARIFF_PLANS),
             },
         }
 
@@ -466,16 +447,11 @@ class WebApp:
                 raise ApiError(400, "bad_club", ctx.t("app.err.club"), "club")
             draft["club"] = club
             if club == FIT:
-                self._membership_fields(ctx, body, draft, number)
+                self._membership_fields(ctx, body, draft)
             else:
                 self._club_fields(ctx, body, draft)
         a = price_advice(ctx, draft)  # 1Fit only: other clubs name their own price
-        if kind != LK.PROMO and draft.get("paid_in_full") is False:
-            # Installments: the price is what is left to pay 1Fit, worked out here — the app sends no price.
-            total = draft["monthly_payment"] * draft["payments_left"]
-            draft["price"] = self._field(ctx, "monthly_payment", parse_price, str(total))
-            a = None  # no recommended price, no limits: the sum is fixed by 1Fit
-        elif a and self.cfg.auto_price:
+        if a and self.cfg.auto_price:
             # The price is the recommended one, worked out here: whatever the app sent is not trusted.
             # It then keeps following the days left: Repo.reprice lowers it every day.
             draft["price"] = a.recommended
@@ -533,29 +509,21 @@ class WebApp:
         return self._field(ctx, "freeze_days", parse_freeze_days, str(freeze) if isinstance(freeze, int) else freeze)
 
     def _club_fields(self, ctx: Ctx, body: dict[str, Any], draft: dict[str, Any]) -> None:
-        """Another club than 1Fit: the end date and the freeze days; no 1Fit tariff, bonus days or installments."""
+        """Another club than 1Fit: the end date and the freeze days; no 1Fit tariff or bonus days."""
         draft["freeze_days"] = self._freeze(ctx, body)
         draft["start_date"] = None
-        draft["paid_in_full"] = True
         draft["bonus_days"] = 0
 
-    def _membership_fields(self, ctx: Ctx, body: dict[str, Any], draft: dict[str, Any], number) -> None:
-        """The start date and how the membership is paid: fully or in installments (the 1Fit tariff is not asked)."""
+    def _membership_fields(self, ctx: Ctx, body: dict[str, Any], draft: dict[str, Any]) -> None:
+        """1Fit: the freeze and bonus days and the start date (the 1Fit tariff is not asked)."""
         draft["tariff_days"] = None
         draft["freeze_days"] = self._freeze(ctx, body)
         draft["bonus_days"] = self._bonus(ctx, body)
         draft["start_date"] = self._field(ctx, "start_date", self._iso_start, body.get("start_date") or "",
                                           today_local(), draft["end_date"])
-        paid = body.get("paid_in_full")
-        if not isinstance(paid, bool):
-            raise ApiError(400, "bad_payment", ctx.t("app.err.payment"), "payment")
-        draft["paid_in_full"] = paid
-        if not paid:
-            draft["monthly_payment"] = self._field(ctx, "monthly_payment", parse_monthly, number("monthly_payment"))
-            draft["payments_left"] = self._field(ctx, "payments_left", parse_payments_left, number("payments_left"))
 
     async def advice(self, request: web.Request) -> web.Response:
-        """Recommended price for the sell form, from the end date and the installments typed so far.
+        """Recommended price for the sell form, from the end date typed so far.
         Half-filled forms are fine: anything not valid yet simply gives no advice."""
         ctx = request[CTX]
         await self.prices.refresh()
@@ -567,24 +535,18 @@ class WebApp:
         except ValidationError:
             return web.json_response({"advice": None})
         plan = body.get("tariff_days")
-        draft: dict[str, Any] = {"kind": LK.MEMBERSHIP, "end_date": end, "paid_in_full": body.get("paid_in_full") is not False,
+        draft: dict[str, Any] = {"kind": LK.MEMBERSHIP, "end_date": end,
                                  "tariff_days": plan if plan in TARIFF_PLANS else None}
         try:
             draft["bonus_days"] = self._bonus(ctx, body)
         except ApiError:
             return web.json_response({"advice": None})
-        if not draft["paid_in_full"]:
-            try:
-                draft["monthly_payment"] = parse_monthly(str(body.get("monthly_payment") or ""))
-                draft["payments_left"] = parse_payments_left(str(body.get("payments_left") or ""))
-            except ValidationError:
-                return web.json_response({"advice": None})
         a = price_advice(ctx, draft)
         if not a:
             return web.json_response({"advice": None})
         return web.json_response({"advice": {
-            "recommended": a.recommended, "max": a.max_price, "min": a.min_price, "installments": a.installments,
-            "total": round_k(a.total(a.recommended)), "fit_total": round_k(a.fit_value),
+            "recommended": a.recommended, "max": a.max_price, "min": a.min_price,
+            "total": round_k(a.recommended), "fit_total": round_k(a.fit_value),
             "saving": a.saving(a.recommended),
             "days_left": a.days_left, "base_days": a.base_days,
         }})

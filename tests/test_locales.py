@@ -61,11 +61,11 @@ def test_every_key_used_in_code_exists():
     # dynamic keys
     for prefix, items in {
         "status.": ["unpaid", "pending", "approved", "rejected", "withdrawn", "removed", "reserved", "sold", "expired"],
-        "sell.field.": ["city", "plan", "freeze", "date", "start", "payment", "price", "desc", "photo", "contacts"],
+        "sell.field.": ["city", "plan", "freeze", "date", "start", "price", "desc", "photo", "contacts"],
         "admin.err.": ["not_found", "bad_status", "already", "stale"],
         "pay.err.": ["not_found", "already", "stale", "off", "lost"],
         "err.": ["bad_tariff", "bad_date_format", "bad_date_past", "bad_date_far", "bad_price", "bad_desc_long",
-                 "bad_contacts", "bad_photo", "bad_name", "bad_phone", "bad_start_future", "bad_start_order", "bad_monthly", "bad_payments_left", "bad_freeze_days", "bad_end_for_plan", "bad_dates_for_plan"],
+                 "bad_contacts", "bad_photo", "bad_name", "bad_phone", "bad_start_future", "bad_start_order", "bad_freeze_days", "bad_end_for_plan", "bad_dates_for_plan"],
         "app.unit.": ["m", "d"],
         "city.": list(CITIES + LEGACY_CITIES),
     }.items():

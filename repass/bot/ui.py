@@ -131,10 +131,9 @@ def left_text(ctx: Ctx, end_iso: str) -> str:
     return f"{r['n']} {unit}"
 
 
-def listing_public(ctx: Ctx, data: dict[str, Any], listing_id: int | str = "—", installments: bool = False) -> str:
+def listing_public(ctx: Ctx, data: dict[str, Any], listing_id: int | str = "—") -> str:
     """Public part of a listing: only what a buyer may see. Labels in the viewer's language,
-    the seller's own words (tariff, description) as written. Buyers never see the installments — only the
-    whole sum; ``installments`` adds them for the seller's own card and the admin."""
+    the seller's own words (tariff, description) as written."""
     promo = data.get("kind") == "promo"
     text = ctx.t(
         "card.body_promo" if promo else "card.body",
@@ -144,7 +143,7 @@ def listing_public(ctx: Ctx, data: dict[str, Any], listing_id: int | str = "—"
         tariff=esc(data.get("tariff") or ""),
         left=left_text(ctx, data["end_date"]),
         date=fmt_day(ctx, data["end_date"]),
-        price=fmt_money(buyer_total(data)),  # what the buyer pays in all: the price plus the installments
+        price=fmt_money(data.get("price") or 0),
     )
     if data.get("price_negotiable"):
         text += ctx.t("card.negotiable")
@@ -152,8 +151,6 @@ def listing_public(ctx: Ctx, data: dict[str, Any], listing_id: int | str = "—"
         text += ctx.t("card.verified")
     if not promo and data.get("bonus_days"):
         text += ctx.t("card.bonus", days=data["bonus_days"])
-    if installments:
-        text += payment_line(ctx, data)
     if data.get("description"):
         text += ctx.t("card.desc", desc=esc(data["description"]))
     return text
@@ -171,43 +168,17 @@ def price_advice(ctx: Ctx, data: dict[str, Any]) -> Advice | None:
     """Price advice for a membership draft (end date from the 1Fit card); None for a promo code or without an end date."""
     if data.get("kind") == "promo" or not data.get("end_date") or not is_fit(data):  # 1Fit's prices: 1Fit only
         return None
-    # a stored listing has 0, a draft has False: both mean the buyer takes the installments over
-    installment = data.get("paid_in_full") is not None and not data["paid_in_full"]
     # a draft has the card's end date: the bonus days come after it
     return advise(with_bonus(data["end_date"], data.get("bonus_days")), today_local(), ctx.repo.fit_prices,
-                  data.get("monthly_payment") if installment else None,
-                  data.get("payments_left") if installment else None, plan_days=data.get("tariff_days"))
+                  plan_days=data.get("tariff_days"))
 
 
 def advice_text(ctx: Ctx, a: Advice) -> str:
     """«Recommended price … ≈ … per month, 1Fit … per month» for the price step."""
-    if not a.max_price:  # the installments alone cost about as much as 1Fit
-        return ctx.t("advice.heavy", total=fmt_money(a.installments), price=fmt_money(a.recommended))
     text = ctx.t("advice.block", price=fmt_money(a.recommended), left=span_text(ctx, a.days_left),
-                 total=fmt_money(round_k(a.total(a.recommended))), fit_total=fmt_money(round_k(a.fit_value)),
+                 total=fmt_money(round_k(a.recommended)), fit_total=fmt_money(round_k(a.fit_value)),
                  saving=a.saving(a.recommended))
-    if a.installments:
-        text += ctx.t("advice.installment", total=fmt_money(a.installments))
     return text + ctx.t("advice.own")  # only a suggestion: any price of the seller's goes
-
-
-def buyer_total(data: dict[str, Any]) -> int:
-    """The price buyers see. Installments: the total left to pay, monthly × payments left (557 000 × 11);
-    otherwise exactly what the seller set."""
-    paid = data.get("paid_in_full")
-    if paid is not None and not paid and data.get("monthly_payment") and data.get("payments_left"):
-        return data["monthly_payment"] * data["payments_left"]
-    return data.get("price") or 0
-
-
-def payment_line(ctx: Ctx, data: dict[str, Any]) -> str:
-    """Fully paid or installment, so «500 000» is never mistaken for the whole price. Empty for old listings."""
-    paid = data.get("paid_in_full")
-    if paid is None:
-        return ""
-    if paid:
-        return ctx.t("card.paid_full")
-    return ""  # installments: the price already is the whole sum; splitting it out only confused people
 
 
 def tg_url(username: str | None) -> str | None:

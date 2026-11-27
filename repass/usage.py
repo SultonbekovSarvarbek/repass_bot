@@ -38,13 +38,6 @@ def span(days: int) -> dict[str, Any]:
     return {"n": days, "unit": "d"}
 
 
-def payments_guess(end_iso: str, today: date, most: int = 60) -> int:
-    """How many monthly installments are probably left: one per month until the end date.
-    Only a suggestion — freezes move the end date and a bank plan may be shorter."""
-    days = (date.fromisoformat(end_iso) - today).days
-    return min(most, max(1, round(days / DAYS_PER_MONTH)))
-
-
 def usage(start_iso: str | None, end_iso: str, today: date, plan_days: int | None = None) -> dict[str, Any] | None:
     """The tariff gives the start: a 12-month membership ending in May started a year before. A typed start date
     is used only without a tariff (old listings): sellers got it wrong («1 сентября» for a card begun in April)."""

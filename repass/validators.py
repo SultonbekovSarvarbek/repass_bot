@@ -6,7 +6,6 @@ from datetime import date
 
 PRICE_MIN = 10_000
 PRICE_MAX = 100_000_000
-PAYMENTS_LEFT_MAX = 60  # monthly installment payments still to make
 # 1Fit's standard tariffs in Tashkent, in days: 6, 12 and 24 months. The seller picks one instead of typing a name.
 # Only a 12- or 24-month membership can be re-registered to another person in 1Fit: 6 months cannot be sold.
 TARIFF_PLANS = (365, 730)
@@ -127,22 +126,6 @@ def parse_bonus_days(text: str | None) -> int:
     m = re.fullmatch(r"\s*(\d{1,3})\s*[^\d]*", text or "")
     if not m or not 0 <= int(m.group(1)) <= FREEZE_DAYS_MAX:
         raise ValidationError("bad_bonus_days")
-    return int(m.group(1))
-
-
-def parse_monthly(text: str | None) -> int:
-    """Installment: how much the seller pays 1Fit every month; the buyer takes these payments over."""
-    try:
-        return parse_price(text)
-    except ValidationError:
-        raise ValidationError("bad_monthly") from None
-
-
-def parse_payments_left(text: str | None) -> int:
-    """Installment: how many monthly payments are still due, «9» or «9 месяцев»."""
-    m = re.fullmatch(r"\s*(\d{1,3})\s*[^\d]*", text or "")
-    if not m or not 1 <= int(m.group(1)) <= PAYMENTS_LEFT_MAX:
-        raise ValidationError("bad_payments_left")
     return int(m.group(1))
 
 

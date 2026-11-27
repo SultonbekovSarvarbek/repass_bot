@@ -15,7 +15,7 @@ from ...money import fmt_money
 from ..callbacks import CardCb, CatCb, CityMenuCb
 from ..context import Ctx
 from ..middlewares import Btn
-from ..ui import btn, buyer_total, esc, kb, listing_public, pager, pages_count, seller_contacts
+from ..ui import btn, esc, kb, listing_public, pager, pages_count, seller_contacts
 
 router = Router(name="catalog")
 CLUB_MENU = "~club"  # CityMenuCb.city starting with it: the club menu instead of the city menu
@@ -57,7 +57,7 @@ async def render_catalog(ctx: Ctx, page: int, flt: str) -> tuple[str, InlineKeyb
     item_rows = [
         [btn(
             ctx.t("catalog.item", id=r["id"], club=club_name(r["club"]), city=ctx.i18n.city(ctx.lang, r["city"]),
-                  price=fmt_money(buyer_total(r)))
+                  price=fmt_money(r["price"]))
             + (ctx.t("catalog.verified") if r["fee_paid_at"] and r["status"] != "sold" else "")
             + (ctx.t("catalog.promo") if r["kind"] == "promo" else "")
             + (ctx.t("catalog.sold") if r["status"] == "sold" else ""),

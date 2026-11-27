@@ -199,7 +199,7 @@ async def test_catalog_shows_only_public_fields(h, api):
     assert {c["code"]: c["count"] for c in cat["cities"]} == {"tashkent": 1, "samarkand": 1}
     for item in cat["items"]:
         assert set(item) == {"id", "city", "tariff", "end_date", "start_date", "usage", "price", "price_negotiable",
-                             "description", "price_total", "kind", "left",
+                             "description", "kind", "left",
                              "month_cost", "tariff_days", "freeze_days", "bonus_days", "card_end_date", "sold", "club", "verified"}
         # The 1Fit tariff is not asked any more: whatever an old app sends is not stored.
         assert item["start_date"] is None and item["tariff_days"] is None
@@ -367,36 +367,23 @@ async def test_start_date_shows_usage(h, api):
     assert {"app.usage", "app.usage_left", "app.unit.m", "app.unit.d", "app.f.start"} <= set(boot["texts"])
 
 
-async def test_installment_is_asked_and_shown(h, api):
-    status, data = await api.call("POST", "/api/listings", SELLER, draft(paid_in_full=None))
-    assert status == 400 and data["field"] == "payment"
-    status, data = await api.call("POST", "/api/listings", SELLER, draft(paid_in_full=False, payments_left=9))
-    assert status == 400 and data["field"] == "monthly_payment"
-    status, data = await api.call("POST", "/api/listings", SELLER,
-                                  draft(paid_in_full=False, monthly_payment="500 000", payments_left=61))
-    assert status == 400 and data["field"] == "payments_left"
-
-    full = await publish(h, api)
+async def test_installments_are_not_asked_or_shown(h, api):
+    """An installment is the seller's debt to the bank: the form does not ask, the listing does not show it."""
+    # an old app version still sends the answers: they are ignored, the price is the one typed
     inst = await publish(h, api, paid_in_full=False, monthly_payment=500_000, payments_left="9")
-    # installments: the price is worked out here, monthly × payments left — whatever price the app sent
-    _, card = await api.call("GET", f"/api/listings/{inst}", BUYER)
-    l = card["listing"]
-    assert l["price_total"] == l["price"] == 4_500_000 and not {"paid_in_full", "monthly_payment", "payments_left"} & set(l)
-    _, card = await api.call("GET", f"/api/listings/{full}", BUYER)
-    assert card["listing"]["price_total"] == card["listing"]["price"]
-    # the seller still sees and edits their own answers
-    _, mine = await api.call("GET", f"/api/listings/{inst}", SELLER)
-    l = mine["listing"]
-    assert (l["paid_in_full"], l["monthly_payment"], l["payments_left"]) == (False, 500_000, 9)
-
-    # Switching to «fully paid» drops the installment numbers.
-    status, _ = await api.call("PUT", f"/api/listings/{inst}", SELLER,
-                               draft(paid_in_full=True, monthly_payment=500_000, payments_left=9))
-    assert status == 200
     stored = await h.repo.get_listing(inst)
     assert (stored["paid_in_full"], stored["monthly_payment"], stored["payments_left"]) == (1, None, None)
+    assert stored["price"] == 2_000_000
+    plain = await publish(h, api, paid_in_full=None)  # and nothing sent is fine too
+    assert (await h.repo.get_listing(plain))["paid_in_full"] == 1
+    hidden = {"paid_in_full", "monthly_payment", "payments_left", "price_total"}
+    _, card = await api.call("GET", f"/api/listings/{inst}", BUYER)
+    assert card["listing"]["price"] == 2_000_000 and not hidden & set(card["listing"])
+    _, mine = await api.call("GET", f"/api/listings/{inst}", SELLER)
+    assert not hidden & set(mine["listing"])
     _, boot = await api.call("GET", "/api/bootstrap", SELLER)
-    assert {"app.pay.full", "app.pay.installment", "app.pay.installment_note", "app.err.payment"} <= set(boot["texts"])
+    assert not [k for k in boot["texts"] if "installment" in k or k.startswith("app.pay.full")]
+    assert "payments_left_max" not in boot["limits"]
 
 
 async def test_promo_code_listing(h, api):
@@ -486,7 +473,7 @@ async def test_promo_codes_hidden_by_default(tmp_path):
         await h.send(SELLER, "/start")
         await h.click(SELLER, "lang:ru")
         first = texts(await h.send(SELLER, "➕ Продать абонемент"))
-        assert "Шаг 1/9" in first and "Абонемент какого клуба" in first and "Что вы продаёте" not in first and "промокод" not in first
+        assert "Шаг 1/8" in first and "Абонемент какого клуба" in first and "Что вы продаёте" not in first and "промокод" not in first
         assert "промокод" not in texts(await h.send(SELLER, "ℹ️ Как это работает"))
     finally:
         await h.stop()
@@ -547,7 +534,6 @@ async def test_bot_requires_the_screenshot(tmp_path):
         await h.click(SELLER, "sl:club:1fit")
         await h.click(SELLER, "sl:city:tashkent")
         await h.send(SELLER, (tl() + td(days=200)).strftime("%d.%m.%Y"))
-        await h.click(SELLER, "sl:pay:full")
         await h.click(SELLER, "sl:freeze:no")
         await h.click(SELLER, "sl:bonus:0")
         await h.send(SELLER, "2 000 000")

@@ -1,6 +1,6 @@
 """The clubs whose memberships are sold here.
 
-1Fit is special: its tariffs, bonus days, installments and the price advice (``pricing.py``) are 1Fit's own,
+1Fit is special: its tariffs, bonus days and the price advice (``pricing.py``) are 1Fit's own,
 and the screenshot is read as a 1Fit card. The other clubs only re-register a membership to another person:
 the seller gives the end date, the freeze days and names the price.
 """

@@ -8,8 +8,8 @@ The line never goes down and never jumps, so one day more never costs less (pror
 that covers the days» priced 91 days 1.5 million below 90, and 250 days below 180). 1Fit's 3-month tariff is
 left out: per day it costs half as much again as 6 months, and a buyer of 50 days compares with those.
 
-When the membership is paid in installments the buyer keeps paying 1Fit every month after the deal, so those
-payments are part of what the membership costs him: they come off the price the seller may ask.
+How the seller paid 1Fit does not matter: an installment is a bank loan, the bank has paid 1Fit in full, and
+the payments stay the seller's own after the membership is re-registered.
 """
 from __future__ import annotations
 
@@ -37,23 +37,18 @@ class Advice:
     base_days: int       # the 1Fit tariff the buyer would otherwise buy
     base_price: int
     fit_value: int       # what these days cost at 1Fit
-    installments: int    # what the buyer still pays 1Fit after the deal
     recommended: int     # advised price for the seller
     max_price: int       # the most the seller may ask (0 = no limit applies)
     min_price: int       # below this the seller is warned
     fit_month: int       # 1Fit, per month of use
 
     def month_cost(self, price: int) -> int:
-        """What the buyer pays per month of use: the price plus the installments he takes over."""
-        return round((price + self.installments) / (self.days_left / DAYS_PER_MONTH))
-
-    def total(self, price: int) -> int:
-        """What the buyer pays in all for the days left: the price plus the installments he takes over."""
-        return price + self.installments
+        """What the buyer pays per month of use."""
+        return round(price / (self.days_left / DAYS_PER_MONTH))
 
     def saved(self, price: int) -> int:
         """How much the buyer saves in all against buying the same days at 1Fit."""
-        return max(0, round(self.fit_value - price - self.installments))
+        return max(0, round(self.fit_value - price))
 
     def saving(self, price: int) -> int:
         """How much cheaper than 1Fit, in percent (may be negative)."""
@@ -68,7 +63,7 @@ class Advice:
     def suspicious(self, price: int) -> bool:
         """«485 000 for 9 months» next to 5 800 000 at 1Fit: almost surely the monthly price, not the total.
         Buyers are told to check it with the operator instead of seeing it as a 92% discount."""
-        return price + self.installments < self.fit_value * SUSPICIOUS_PERCENT / 100
+        return price < self.fit_value * SUSPICIOUS_PERCENT / 100
 
 
 def _round_down(amount: float) -> int:
@@ -102,7 +97,6 @@ def fit_value_of(days: int, prices: dict[int, int]) -> tuple[float, int]:
 
 
 def advise(end_iso: str, today: date, fit_prices: dict[int, int] | None = None,
-           monthly_payment: int | None = None, payments_left: int | None = None,
            discount: int = DISCOUNT_PERCENT, max_percent: int = MAX_PERCENT,
            plan_days: int | None = None) -> Advice | None:
     """Advice for a membership that ends on ``end_iso``; ``None`` if it has already ended.
@@ -115,20 +109,17 @@ def advise(end_iso: str, today: date, fit_prices: dict[int, int] | None = None,
     prices = normalize_prices(fit_prices)
     fit_value, base_days = fit_value_of(days_left, prices)
     base_price = prices[base_days]
-    installments = (monthly_payment or 0) * (payments_left or 0) if monthly_payment and payments_left else 0
 
-    recommended = max(PRICE_MIN, _round_down(fit_value * (100 - discount) / 100 - installments))
-    max_price = _round_down(fit_value * max_percent / 100 - installments) if max_percent else 0
-    if max_price < recommended:
-        # The installments alone already cost about as much as 1Fit: a cap would leave the seller nothing to ask.
+    recommended = max(PRICE_MIN, _round_down(fit_value * (100 - discount) / 100))
+    max_price = _round_down(fit_value * max_percent / 100) if max_percent else 0
+    if max_price < recommended:  # a few days left: the cap rounds down below the smallest price
         max_price = 0
-    min_price = min(recommended, _round_down(fit_value * MIN_PERCENT / 100 - installments))
+    min_price = min(recommended, _round_down(fit_value * MIN_PERCENT / 100))
     return Advice(
         days_left=days_left,
         base_days=base_days,
         base_price=base_price,
         fit_value=round(fit_value),
-        installments=installments,
         recommended=recommended,
         max_price=max_price,
         min_price=max(PRICE_MIN, min_price),
