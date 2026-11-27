@@ -145,18 +145,6 @@ p { margin: 0; }
 .item .price::after { bottom: -22px; }
 .item .price small { display: block; font: 400 12px/1.3 var(--body); letter-spacing: 0; color: var(--hint); margin-top: 2px; }
 .badge { display: inline-block; font-size: 12.5px; padding: 3px 9px; border-radius: 999px; background: var(--page); margin-top: 6px; }
-/* «cheapest» flag sitting on the top-right edge of the first catalog card */
-.best { position: relative; }
-.stack > .best { margin-top: 20px; }
-/* Corner flags on a catalog card: «🔥 Выгода 26%» and «Самый дешёвый», side by side in the top right corner. */
-.flags { position: absolute; top: -11px; right: 14px; z-index: 1; display: flex; gap: 6px; }
-.flag {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 11px 4px 9px; border-radius: 999px; background: var(--green); color: var(--ink);
-  font: 700 12px/1.2 var(--body); letter-spacing: 0.01em; white-space: nowrap;
-  box-shadow: 0 0 0 3px var(--page), 0 4px 12px rgba(0, 13, 31, 0.18);
-}
-.flag svg { width: 13px; height: 13px; fill: currentColor; }
 .hero { position: relative; }
 .hero /* price type: negotiable stands out in lime, fixed stays quiet */
 .badge.ptype { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; letter-spacing: 0.01em; padding: 4px 10px 4px 8px; }
@@ -432,7 +420,7 @@ function openTg(username) {
   const url = "https://t.me/" + username;
   try { tg.openTelegramLink(url); } catch (e) { window.open(url, "_blank"); }
 }
-// What every buyer sees to reach the seller: the name, the phone (tap to call) and Telegram.
+// What every buyer sees to reach the seller: the name, the phone (tap to copy) and Telegram (tap to open the chat).
 // Taps on the seller's contacts are recorded (who reached which seller), never blocking the tap itself.
 function trackContact(id, action) {
   if (!id) return;
@@ -450,14 +438,14 @@ function sellerCard(s, listingId) {
     trackContact(listingId, "copy");
     try { navigator.clipboard.writeText(s.phone).then(() => toast(T("app.seller.copied"))); } catch (e) { /* no clipboard */ }
   };
+  const writeTg = () => { trackContact(listingId, "telegram"); openTg(s.username); };  // the row and the button alike
   return [
     h("div", { class: "card rows" },
       h("div", null, h("span", { class: "k" }, T("app.seller.title")), h("span", { class: "v" }, s.name)),
       s.phone ? h("div", { onclick: copy }, h("span", { class: "k" }, T("app.f.phone")), h("span", { class: "v num" }, s.phone)) : null,
-      s.username ? h("div", null, h("span", { class: "k" }, "Telegram"), h("span", { class: "v" }, "@" + s.username)) : null),
+      s.username ? h("div", { onclick: writeTg, role: "link" }, h("span", { class: "k" }, "Telegram"), h("span", { class: "v" }, "@" + s.username)) : null),
     h("div", { class: "stack" },
-      s.username ? h("button", { class: "btn", type: "button",
-        onclick: () => { trackContact(listingId, "telegram"); openTg(s.username); } }, T("app.seller.tg")) : null,
+      s.username ? h("button", { class: "btn", type: "button", onclick: writeTg }, T("app.seller.tg")) : null,
       tel ? h("a", { class: s.username ? "btn ghost" : "btn", href: "tel:" + tel,
         onclick: () => trackContact(listingId, "call") }, T("app.seller.call")) : null),
   ];
@@ -548,11 +536,6 @@ function listingRow(l, onclick, extra) {
     h("div", { class: "price num" }, money(l.price), h("small", null, T("app.sum"))));
 }
 const soldBadge = () => h("span", { class: "badge sold" }, "✅ " + T("app.sold_badge"));
-function cheapestFlag() {
-  const flag = h("span", { class: "flag" }, T("app.badge.cheapest"));
-  flag.insertAdjacentHTML("afterbegin", '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>');
-  return flag;
-}
 const priceBadge = (l) => h("span", { class: "badge ptype " + (l.price_negotiable ? "deal" : "fixed") },
   T(l.price_negotiable ? "app.badge.negotiable" : "app.badge.fixed"));
 const isPromo = (l) => l.kind === "promo";
@@ -563,13 +546,14 @@ function clubLogo(code) {
   const src = "clubs/" + code + (code === "1fit" ? ".svg" : ".png");
   return h("span", { class: "clogo" + (code === "1fit" ? " fit" : ""), "aria-hidden": "true" }, h("img", { src, alt: "", loading: "lazy" }));
 }
-function verifiedBadge() {
-  const b = h("span", { class: "vbadge" }, T("app.verified"));
+// The placement fee is paid. Buyers read it as «Checked»; the seller, in their own listings, as «Paid».
+function verifiedBadge(own) {
+  const b = h("span", { class: "vbadge" }, T(own ? "app.paid_badge" : "app.verified"));
   b.insertAdjacentHTML("afterbegin", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>');
   return b;
 }
 const clubTag = (l) => isPromo(l) && !l.verified ? null : h("div", { class: "club-tag" },
-  isPromo(l) ? null : clubLogo(clubOf(l)), isPromo(l) ? null : clubName(clubOf(l)), l.verified && !l.sold ? verifiedBadge() : null);
+  isPromo(l) ? null : clubLogo(clubOf(l)), isPromo(l) ? null : clubName(clubOf(l)), l.verified && !l.sold ? verifiedBadge("status" in l) : null);  // only the seller's own view has a status
 // Months left instead of a tariff name: «12 months» made buyers think they got all 12.
 // «52 дн.» / «7 мес.» from today to an end date — the same rule as the server's remaining().
 function leftFor(endIso) {
@@ -638,16 +622,7 @@ function catalogView(view, rev) {
   const more = c.items.length < c.total
     ? h("button", { class: "btn ghost", type: "button", onclick: (e) => busy(e.currentTarget, async () => { await fetchCatalog(false); render(); }) }, T("app.catalog.more"))
     : null;
-  // «Cheapest»: the lowest price shown among the memberships loaded. A promo code is a different thing
-  // and is naturally cheaper, so flagging it would mislead.
-  const memberships = c.items.filter((l) => !isPromo(l) && !l.sold);
-  const best = memberships.length > 1
-    ? memberships.reduce((a, b) => (b.price < a.price ? b : a)) : null;
-  const rows = c.items.map((l) => {
-    const row = listingRow(l, () => go({ name: "listing", id: l.id }));
-    const flags = [l === best ? cheapestFlag() : null].filter(Boolean);
-    return flags.length ? h("div", { class: "best" }, row, h("div", { class: "flags" }, flags)) : row;
-  });
+  const rows = c.items.map((l) => listingRow(l, () => go({ name: "listing", id: l.id })));
   return [head, clubChips, chips, h("div", { class: "stack" }, rows, more)];
 }
 
