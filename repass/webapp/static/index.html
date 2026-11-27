@@ -77,10 +77,8 @@ p { margin: 0; }
 .muted { color: var(--hint); }
 .small { font-size: 13.5px; line-height: 1.35; }
 .note { color: var(--hint); font-size: 13.5px; line-height: 1.4; margin: 8px 4px 0; }
-/* the fee is paid through Payme: its logo beside the note under the pay button */
-.paywith { display: flex; align-items: center; gap: 12px; margin: 0 4px; }
-.paywith .note { margin: 0; }
-.payme { flex: none; width: 72px; aspect-ratio: 1045 / 344; background: var(--payme) center/contain no-repeat; }
+/* the fee is paid through Payme: its logo inside the pay buttons */
+.payme { flex: none; width: 64px; aspect-ratio: 1045 / 344; background: var(--payme) center/contain no-repeat; }
 .num { font-variant-numeric: tabular-nums; }
 
 .card { background: var(--card); border-radius: 18px; }
@@ -1044,6 +1042,7 @@ function afterSubmit(id, paid) {
 }
 // «Оплатите размещение»: right after «Send to moderation» for an unpaid listing. The listing is saved;
 // it reaches the moderators once the fee is paid. Left unpaid, it stays in «My», where it can be paid any time.
+const paymeLogo = () => h("span", { class: "payme", role: "img", "aria-label": "Payme" });
 function payView(view) {
   const toMy = (text) => { S.my = null; S.stack = []; S.tab = "my"; render(); if (text) toast(text); };
   const manual = B.vars.pay_manual;  // until Payme works: the seller pays the operator, an admin confirms
@@ -1055,7 +1054,7 @@ function payView(view) {
     if (status === "pending") { toast(T("app.pay.external")); return; }
     if (status !== "paid") { haptic("warning"); return; }
     haptic("success"); toMy(T("app.my.paid"));
-  }) }, "💳 " + T("app.payv.btn", { fee: money(view.fee) }));
+  }) }, paymeLogo(), T("app.payv.btn", { fee: money(view.fee) }));
   return [
     h("h1", null, T("app.payv.title")),
     h("div", { class: "stack" },
@@ -1067,7 +1066,7 @@ function payView(view) {
           h("span", { class: "v num" }, money(view.fee) + " " + T("app.sum")))),
       pay,
       manual ? h("p", { class: "note", style: "margin:0 4px" }, T("app.payv.manual_note"))
-        : h("div", { class: "paywith" }, h("span", { class: "payme", role: "img", "aria-label": "Payme" }), h("p", { class: "note" }, T("app.payv.note")))),
+        : h("p", { class: "note", style: "margin:0 4px" }, T("app.payv.note"))),
   ];
 }
 function sellView() {
@@ -1128,7 +1127,7 @@ function mineView(view) {
     if (status !== "paid") return;
     haptic("success"); toast(T("app.my.paid"));
     S.my = null; S.tab = "my"; S.stack = []; render();  // the bot moves it to moderation as the payment lands
-  }) }, T("app.my.pay", { fee: money(l.fee) }));
+  }) }, paymeLogo(), T("app.my.pay", { fee: money(l.fee) }));
   return [
     h("h1", null, T("app.listing", { id: l.id })),
     h("div", { class: "stack" },
